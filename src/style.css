@@ -1,0 +1,24 @@
+body {
+  user-select: none;
+}
+
+body::after {
+  content: "";
+  position: absolute;
+  inset: 0px;
+  pointer-events: none;
+  background: linear-gradient(rgba(18, 16, 16, 0) 50%, rgba(0, 0, 0, 0.25) 50%) 0% 0% / 100% 2px, linear-gradient(90deg, rgba(255, 0, 0, 0.06), rgba(0, 255, 0, 0.02), rgba(0, 0, 255, 0.06)) 0% 0% / 2px 100%;
+}
+
+canvas {
+  background-color: #888 !important;
+  image-rendering: pixelated;
+  position: fixed;
+  top: 0px;
+  left: 0px;
+  width: 100% !important;
+  height: 100% !important;
+  object-fit: contain;
+  touch-action: none;
+  -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
+}
