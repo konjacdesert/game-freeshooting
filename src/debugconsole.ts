@@ -25,6 +25,7 @@ export const DbgConsole = (function () {
     messagesPerFrame.forEach((v, i) => {
       disp.fillText(v, CanvasScreen.info.WIDTH, i * 10);
     });
+    messagesPerFrame.splice(0);
 
     //恒常ログ
     disp.textAlign = "left"
@@ -32,7 +33,6 @@ export const DbgConsole = (function () {
       disp.fillText(v, 0, i * 10);
     });
     disp.restore();
-    messagesPerFrame.splice(0);
   }
 
   return {
