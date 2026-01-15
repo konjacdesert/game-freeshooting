@@ -1,7 +1,26 @@
-#gd_container {
+#full_container {
+    width: 640px;
+    height: 480px;
+    position: relative;
+    display: flex;
+    flex-direction: column;
     background-color: #111 !important;
-    position: fixed;
+}
+
+#full_container>.header {
+    color: #eee;
+}
+
+#full_container:has(input:checked) {
+    position: fixed !important;
     inset: 0;
+    width: 100% !important;
+    height: 100% !important;
+}
+
+#gd_container {
+    flex: 1;
+    position: relative;
     -webkit-tap-highlight-color: rgba(0, 0, 0, 0);
     user-select: none;
     touch-action: none;
@@ -13,11 +32,13 @@
 
 #gd_main {
     position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    image-rendering: pixelated;
+    top: 0;
+    left: 50%;
+    transform: translateX(-50%);
     object-fit: contain;
+    width: 100%;
+    max-height: 100%;
+    image-rendering: pixelated;
 }
 
 #gd_overlay {
@@ -26,9 +47,6 @@
 }
 
 .box_parent {
-    width: 100%;
-    height: 100%;
-
     /* 下から左右に分けて配置 */
     display: flex;
     align-items: flex-end;
@@ -38,11 +56,15 @@
 
 .box {
     /* サイズ制御 */
-    max-width: 4cm;
+    max-width: 5.5cm;
     aspect-ratio: 1 / 1;
 
     /* ボックス横並びの重なり防止 */
     inline-size: min(calc(100cqw / 2), 100cqh);
 
-    background-color: #fff1;
+    border: 1px solid #fff8;
+}
+
+.notouch {
+    display: none !important;
 }
