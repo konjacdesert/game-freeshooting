@@ -45,16 +45,15 @@ const VPad = (() => {
             ]
         },
     ];
-    console.log(touchDatabase[0].areas.length);
 
     let inputRaw = 0;
     let inputOut = 0;
 
     const isTouch = 'ontouchstart' in window;
 
-    const overlay = document.getElementById("gd_overlay");
-    if (overlay) {
-        overlay.hidden = !isTouch;
+    const overlay = document.getElementById("gd_vpad");
+    if (!isTouch && overlay) {
+        overlay.classList.add("hidden");
     }
 
     if (isTouch) {
@@ -258,10 +257,10 @@ const Game = (() => {
         if (inputs & PAD_FLAG.Down) {
             ty += 1;
         }
-        if(inputs & PAD_FLAG.Z) {
+        if (inputs & PAD_FLAG.Z) {
             tx = 0;
         }
-        if(inputs & PAD_FLAG.X) {
+        if (inputs & PAD_FLAG.X) {
             ty = 0;
         }
     }

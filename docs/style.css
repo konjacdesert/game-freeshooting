@@ -7,12 +7,6 @@
     flex-direction: column;
 }
 
-.container>.header {
-    color: #eee;
-    text-wrap: nowrap;
-    overflow: hidden;
-}
-
 .container:has(input:checked) {
     position: fixed !important;
     inset: 0;
@@ -20,47 +14,99 @@
     height: 100% !important;
 }
 
-.container>.main {
+.header {
+    color: #eee;
+    text-wrap: nowrap;
+    overflow: hidden;
+}
+
+.main {
     pointer-events: none;
     position: relative;
     flex-grow: 1;
     container-type: size;
 }
 
-.container>.main>.floatbox {
-    overflow: hidden;
-    text-align: center;
+.main_layout {
+    flex-grow: 1;
+    background-color: #222;
+    display: flex;
+    width: 100%;
     height: 100%;
+    flex-direction: column;
 }
 
-.container>.main>.floatbox>canvas {
+.bc_container {
+    display: flex;
+    flex-direction: row;
+    justify-content: space-between;
+}
+
+.tbox.a {
+    flex: 1;
+    min-height: 0;
+}
+
+.tbox>img,
+.tbox>canvas {
     width: 100%;
     height: 100%;
     object-fit: contain;
 }
 
-.container>.main>.fixbox {
-    position: absolute;
+.tbox.b {
     aspect-ratio: 1 / 1;
     max-width: 5.5cm;
     inline-size: min(calc(100cqw / 2), 100cqh);
 }
 
-.container>.main>.fixbox>img {
-    display: block;
-    width: 100%;
-    height: 100%;
-    opacity: 0.5;
+.tbox.c {
+    aspect-ratio: 1 / 1;
+    max-width: 5.5cm;
+    inline-size: min(calc(100cqw / 2), 100cqh);
 }
 
-.container>.main>.bl {
-    bottom: 0;
-    left: 0;
+@container (min-aspect-ratio: 288/224) {
+    .main_layout {
+        flex-direction: row;
+    }
+
+    .bc_container {
+        display: contents;
+    }
+
+    .tbox.a {
+        flex: 1;
+        height: 100%;
+        order: 2;
+    }
+
+    .tbox>.max {
+        width: 100%;
+        height: 100%;
+        object-fit: contain;
+        display: block;
+    }
+
+    .tbox.b {
+        aspect-ratio: 1 / 1;
+        max-height: 5.5cm;
+        inline-size: min(calc(100cqw/3), 100cqh);
+        margin-top: auto;
+        order: 1;
+    }
+
+    .tbox.c {
+        aspect-ratio: 1 / 1;
+        max-height: 5.5cm;
+        inline-size: min(calc(100cqw/3), 100cqh);
+        margin-top: auto;
+        order: 3;
+    }
 }
 
-.container>.main>.br {
-    bottom: 0;
-    right: 0;
+.hidden {
+    display: none !important;
 }
 
 #gd_container {

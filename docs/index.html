@@ -18,14 +18,18 @@
             </label>
         </div>
         <div class="main">
-            <div class="floatbox">
-                <canvas id="gd_main" class="max"></canvas>
-            </div>
-            <div id="gd_vpad_l" class="fixbox bl vpad">
-                <img src="vp_l.png" />
-            </div>
-            <div id="gd_vpad_r" class="fixbox br vpad">
-                <img src="vp_r.png" />
+            <div class="main_layout">
+                <div class="tbox a">
+                    <canvas id="gd_main"></canvas>
+                </div>
+                <div class="bc_container" id="gd_vpad">
+                    <div id="gd_vpad_l" class="tbox b">
+                        <img src="vp_l.png" />
+                    </div>
+                    <div id="gd_vpad_r" class="tbox c">
+                        <img src="vp_r.png" />
+                    </div>
+                </div>
             </div>
         </div>
     </div>
