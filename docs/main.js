@@ -1,14 +1,13 @@
 const FPS = 60;
-const WIDTH = 256;
-const HEIGHT = 240;
-
+const WIDTH = 224;
+const HEIGHT = 288;
 const PAD_FLAG = {
     Left: 1 << 0,
     Right: 1 << 1,
     Up: 1 << 2,
     Down: 1 << 3,
-    A: 1 << 4,
-    B: 1 << 5,
+    Z: 1 << 4,
+    X: 1 << 5,
     Start: 1 << 6,
 }
 
@@ -25,13 +24,28 @@ const VPad = (() => {
     const touchDatabase = [
         {
             elm: document.getElementById("gd_vpad_l"),
-            areas: [{ x: 0, y: 0, w: 100, h: 100, f: PAD_FLAG.Left }],
+            areas: [
+                { x: 10, y: 40, w: 30, h: 20, f: PAD_FLAG.Left },
+                { x: 60, y: 40, w: 30, h: 20, f: PAD_FLAG.Right },
+                { x: 40, y: 10, w: 20, h: 30, f: PAD_FLAG.Up },
+                { x: 40, y: 60, w: 20, h: 30, f: PAD_FLAG.Down },
+                { x: 10, y: 10, w: 30, h: 30, f: PAD_FLAG.Left | PAD_FLAG.Up },
+                { x: 60, y: 10, w: 30, h: 30, f: PAD_FLAG.Right | PAD_FLAG.Up },
+                { x: 10, y: 60, w: 30, h: 30, f: PAD_FLAG.Left | PAD_FLAG.Down },
+                { x: 60, y: 60, w: 30, h: 30, f: PAD_FLAG.Right | PAD_FLAG.Down },
+            ]
         },
         {
             elm: document.getElementById("gd_vpad_r"),
-            areas: [{ x: 0, y: 0, w: 100, h: 100, f: PAD_FLAG.Right }],
+            areas: [
+                { x: 60, y: 60, w: 30, h: 30, f: PAD_FLAG.Z },
+                { x: 10, y: 60, w: 30, h: 30, f: PAD_FLAG.X },
+                { x: 40, y: 60, w: 20, h: 30, f: PAD_FLAG.Z | PAD_FLAG.X },
+                { x: 20, y: 10, w: 20, h: 10, f: PAD_FLAG.Start },
+            ]
         },
     ];
+    console.log(touchDatabase[0].areas.length);
 
     let inputRaw = 0;
     let inputOut = 0;
@@ -135,11 +149,11 @@ const VPad = (() => {
 })();
 
 const KPad = (() => {
-    /** @type {{code:string,f:number}[]} */
-    const keyDatabase = [
-        { code: "ArrowLeft", f: PAD_FLAG.Left },
-        { code: "ArrowRight", f: PAD_FLAG.Right },
-    ];
+    /** @type {{[key:string]:number}} */
+    const keyDatabase = {
+        ArrowLeft: PAD_FLAG.Left,
+        ArrowRight: PAD_FLAG.Right,
+    };
 
     /** @type {{ [key: string]: boolean }} */
     let keyState = {};
@@ -147,11 +161,13 @@ const KPad = (() => {
     let inputOut = 0;
 
     window.addEventListener("keydown", function (e) {
+        if (!keyDatabase.hasOwnProperty(e.code)) return;
         e.preventDefault();
         keyState[e.code] = true;
     });
 
     window.addEventListener("keyup", function (e) {
+        if (!keyDatabase.hasOwnProperty(e.code)) return;
         e.preventDefault();
         keyState[e.code] = false;
     });
@@ -162,10 +178,9 @@ const KPad = (() => {
 
     function update() {
         inputOut = 0;
-        for (let i = 0; i < keyDatabase.length; i++) {
-            const code = keyDatabase[i].code;
+        for (const code in keyDatabase) {
             if (keyState[code]) {
-                inputOut |= keyDatabase[i].f;
+                inputOut |= keyDatabase[code];
             }
         }
     }
@@ -190,7 +205,40 @@ const Game = (() => {
     const ctx = canvas.getContext('2d');
     if (ctx == null) return;
 
-    let t = 0;
+    const imgData = ctx.createImageData(WIDTH, HEIGHT);
+
+    let tx = 0, ty = 0;
+
+    /**
+     * 
+     * @param {number} x 
+     * @param {number} y 
+     * @param {number} r 
+     * @param {number} g 
+     * @param {number} b 
+     */
+    function setPixel(x, y, r, g, b) {
+        const index = (y * WIDTH + x) * 4;
+        imgData.data[index + 0] = r;
+        imgData.data[index + 1] = g;
+        imgData.data[index + 2] = b;
+        imgData.data[index + 3] = 0xff;
+    }
+
+    const paletteTable = [...Array(64)].map((_, i) => (i % 4) << 4 | (((i / 4) % 4) << 2) | ((i / 16) % 4));
+
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} p
+     */
+    function setPixelAsPalette(x, y, p) {
+        const c = paletteTable[p];
+        const r = ((c >> 4) & 0x3) * 0x55;
+        const g = ((c >> 2) & 0x3) * 0x55;
+        const b = (c & 0x3) * 0x55;
+        setPixel(x, y, r, g, b);
+    }
 
     const update = () => {
         VPad.update();
@@ -199,29 +247,34 @@ const Game = (() => {
         const kinputs = KPad.get();
         const inputs = vinputs | kinputs;
         if ((inputs & PAD_FLAG.Left) != 0) {
-            t -= 1;
+            tx -= 1;
         }
         if (inputs & PAD_FLAG.Right) {
-            t += 1;
+            tx += 1;
+        }
+        if (inputs & PAD_FLAG.Up) {
+            ty -= 1;
+        }
+        if (inputs & PAD_FLAG.Down) {
+            ty += 1;
+        }
+        if(inputs & PAD_FLAG.Z) {
+            tx = 0;
+        }
+        if(inputs & PAD_FLAG.X) {
+            ty = 0;
         }
     }
 
     // 毎フレーム描画ループ
     const draw = () => {
-        // 背景色を塗る
-        ctx.fillStyle = '#000';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-
-        // 動く円の座標計算
-        const time = t * (Math.PI * 2) / 60;
-        const x = WIDTH / 2 + Math.cos(time) * 64;
-        const y = HEIGHT / 2 + Math.sin(time) * 64;
-
-        // 円を描画
-        ctx.beginPath();
-        ctx.arc(x, y, 20, 0, Math.PI * 2);
-        ctx.fillStyle = '#113';
-        ctx.fill();
+        for (let y = 0; y < HEIGHT; y++) {
+            for (let x = 0; x < WIDTH; x++) {
+                const c = ((x + tx) >> 4 & 0x07) + (((y + ty) >> 4 & 0x07) << 3);
+                setPixelAsPalette(x, y, c);
+            }
+        }
+        ctx.putImageData(imgData, 0, 0);
     }
 
     return {
