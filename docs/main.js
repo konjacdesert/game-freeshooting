@@ -208,8 +208,17 @@ const Game = (() => {
     if (ctx == null) return;
 
     const imgData = ctx.createImageData(WIDTH, HEIGHT);
+    const buffer = new ArrayBuffer(0x400);
+    const mem = new DataView(buffer);
 
-    let tx = 0, ty = 0;
+    const ADR_PALETTE_COLOR0 = 0x300;
+    // パレット初期化
+    for (let i = 0; i < 0x80; i++) {
+        const c = (i << 8) | (i << 1) | (i >> 6);
+        // const c1 = i & 0b11111;
+        // const c = c1 | (c1 << 5) | (c1 << 10);
+        mem.setUint16(ADR_PALETTE_COLOR0 + i * 2, c);
+    }
 
     /**
      * 
@@ -227,7 +236,12 @@ const Game = (() => {
         imgData.data[index + 3] = 0xff;
     }
 
-    const paletteTable = [...Array(64)].map((_, i) => (i % 4) << 4 | (((i / 4) % 4) << 2) | ((i / 16) % 4));
+    /**
+     * @param {number} v
+     */
+    function bit5to8(v) {
+        return (v << 3) | (v >> 2);
+    }
 
     /**
      * @param {number} x
@@ -235,11 +249,16 @@ const Game = (() => {
      * @param {number} p
      */
     function setPixelAsPalette(x, y, p) {
-        const c = paletteTable[p];
-        const r = ((c >> 4) & 0x3) * 0x55;
-        const g = ((c >> 2) & 0x3) * 0x55;
-        const b = (c & 0x3) * 0x55;
-        setPixel(x, y, r, g, b);
+        const c = mem.getUint16(ADR_PALETTE_COLOR0 + p * 2);
+        const meta = (c >> 15) & 0x1;
+        if (p != 0 && meta == 1) {
+            setPixelAsPalette(x, y, 0);
+            return;
+        }
+        const r = ((c >> 0xa) & 0b11111);
+        const g = ((c >> 0x5) & 0b11111);
+        const b = ((c >> 0x0) & 0b11111);
+        setPixel(x, y, bit5to8(r), bit5to8(g), bit5to8(b));
     }
 
     const update = () => {
@@ -248,23 +267,38 @@ const Game = (() => {
         const vinputs = VPad.get();
         const kinputs = KPad.get();
         const inputs = vinputs | kinputs;
+
+        mem.setUint32(4 * 2, 0);
+        mem.setUint32(4 * 3, 0);
         if ((inputs & PAD_FLAG.Left) != 0) {
-            tx -= 1;
+            mem.setUint32(4 * 2, mem.getUint32(4 * 2) + 0xFFFC_0000);
         }
         if (inputs & PAD_FLAG.Right) {
-            tx += 1;
+            mem.setUint32(4 * 2, mem.getUint32(4 * 2) + 0x0004_0000);
         }
         if (inputs & PAD_FLAG.Up) {
             mem.setUint32(4 * 3, mem.getUint32(4 * 3) + 0xFFFC_0000);
         }
         if (inputs & PAD_FLAG.Down) {
-            ty += 1;
+            mem.setUint32(4 * 3, mem.getUint32(4 * 3) + 0x0004_0000);
         }
-        if (inputs & PAD_FLAG.Z) {
-            tx = 0;
+
+        if (mem.getUint32(4 * 2) != 0 && mem.getUint32(4 * 3) != 0) {
+            /**
+             * @param {number} x
+             */
+            function div_sqrt2(x) {
+                return ((x >> 16) * 46341) + (((x & 0xFFFF) * 46341) >> 16);
+            }
+            mem.setUint32(4 * 2, div_sqrt2(mem.getUint32(4 * 2)));
+            mem.setUint32(4 * 3, div_sqrt2(mem.getUint32(4 * 3)));
         }
-        if (inputs & PAD_FLAG.X) {
-            ty = 0;
+        mem.setUint32(0, mem.getUint32(0) + (mem.getUint32(4 * 2)));
+        mem.setUint32(4, mem.getUint32(4) + (mem.getUint32(4 * 3)));
+
+        if (inputs & PAD_FLAG.Start) {
+            mem.setUint32(0, 0);
+            mem.setUint32(4, 0);
         }
     }
 
@@ -272,7 +306,10 @@ const Game = (() => {
     const draw = () => {
         for (let y = 0; y < HEIGHT; y++) {
             for (let x = 0; x < WIDTH; x++) {
-                const c = ((x + tx) >> 4 & 0x07) + (((y + ty) >> 4 & 0x07) << 3);
+                setPixelAsPalette(x, y, 0);
+                const xx = (x + mem.getUint16(0)) / 8 | 0;
+                const yy = (y + mem.getUint16(4)) / 8 | 0;
+                const c = (xx + yy) % 0x80;
                 setPixelAsPalette(x, y, c);
             }
         }
