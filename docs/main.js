@@ -12,12 +12,12 @@ const PAD_FLAG = {
 }
 
 const VPad = (() => {
-    const canvas = document.getElementById('gd_container');
-    if (canvas) {
+    const container = document.getElementById('gd_container');
+    if (container) {
         //スクロール禁止
-        canvas.addEventListener("wheel", function (e) { e.preventDefault(); }, { passive: false });
+        container.addEventListener("wheel", function (e) { e.preventDefault(); }, { passive: false });
         //右クリックメニュー禁止
-        canvas.addEventListener("contextmenu", function (e) { e.preventDefault(); }, { passive: false });
+        container.addEventListener("contextmenu", function (e) { e.preventDefault(); }, { passive: false });
     }
 
     /** @type {{elm:HTMLElement|null,areas:{x:number,y:number,w:number,h:number,f:number}[]}[]} */
@@ -51,16 +51,14 @@ const VPad = (() => {
 
     const isTouch = 'ontouchstart' in window;
 
-    const overlay = document.getElementById("gd_vpad");
-    if (!isTouch && overlay) {
-        overlay.classList.add("hidden");
-    }
-
     if (isTouch) {
         window.addEventListener("touchstart", ParseEvent, { passive: false });
         window.addEventListener("touchmove", ParseEvent, { passive: false });
         window.addEventListener("touchend", ParseEvent, { passive: false });
         window.addEventListener("touchcancel", ParseEvent, { passive: false });
+    } else {
+        const overlay = document.getElementById("gd_vpad");
+        overlay?.classList.add("hidden");
     }
 
     /**
@@ -152,6 +150,11 @@ const KPad = (() => {
     const keyDatabase = {
         ArrowLeft: PAD_FLAG.Left,
         ArrowRight: PAD_FLAG.Right,
+        ArrowUp: PAD_FLAG.Up,
+        ArrowDown: PAD_FLAG.Down,
+        KeyZ: PAD_FLAG.Z,
+        KeyX: PAD_FLAG.X,
+        Space: PAD_FLAG.Start,
     };
 
     /** @type {{ [key: string]: boolean }} */
@@ -252,7 +255,7 @@ const Game = (() => {
             tx += 1;
         }
         if (inputs & PAD_FLAG.Up) {
-            ty -= 1;
+            mem.setUint32(4 * 3, mem.getUint32(4 * 3) + 0xFFFC_0000);
         }
         if (inputs & PAD_FLAG.Down) {
             ty += 1;
@@ -284,9 +287,47 @@ const Game = (() => {
 
 
 (() => {
+    const pause = {
+        isBlur: !document.hasFocus(),
+        isHidden: document.hidden,
+        isUser: false,
+    }
+
+    /**
+     * @param {string} type
+     * @param {boolean} state
+     */
+    function SetPauseState(type, state) {
+        switch (type) {
+            case 'blur':
+                pause.isBlur = state;
+                break;
+            case 'hidden':
+                pause.isHidden = state;
+                break;
+            case 'user':
+                pause.isUser = state;
+                break;
+        }
+        const isPause = pause.isBlur || pause.isHidden || pause.isUser;
+        StartLoop(isPause);
+    }
+
+    window.addEventListener("focus", (e) => { SetPauseState('blur', false); });
+    window.addEventListener("blur", (e) => { SetPauseState('blur', true); });
+    document.addEventListener("visibilitychange", (e) => { SetPauseState('hidden', document.hidden); });
+    document.getElementById("gd_pause")?.addEventListener("change", (e) => {
+        const checkbox = /** @type {HTMLInputElement} */ (e.target);
+        SetPauseState('user', checkbox.checked);
+    });
+
     const targetInterval = 1000 / FPS;
     const maxFrame = 3;
     let nextGameTick = performance.now();
+    /**
+     * @type {number | null}
+     */
+    let animationFrameId = null;
 
     /**
      * @param {DOMHighResTimeStamp} ts
@@ -307,8 +348,26 @@ const Game = (() => {
             Game?.draw();
         }
 
-        requestAnimationFrame(mainloop);
+        animationFrameId = requestAnimationFrame(mainloop);
     }
 
-    requestAnimationFrame(mainloop);
+    /**
+     * @param {boolean} pause
+     */
+    function StartLoop(pause) {
+        if (pause) {
+            if (animationFrameId != null) {
+                cancelAnimationFrame(animationFrameId);
+                animationFrameId = null;
+            }
+        } else {
+            if (animationFrameId == null) {
+                nextGameTick = performance.now();
+                animationFrameId = requestAnimationFrame(mainloop);
+            }
+        }
+    }
+
+    StartLoop(pause.isBlur || pause.isHidden || pause.isUser);
+
 })();

@@ -7,7 +7,7 @@
     flex-direction: column;
 }
 
-.container:has(input:checked) {
+.container:has(#gd_maximize:checked) {
     position: fixed !important;
     inset: 0;
     width: 100% !important;
