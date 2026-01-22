@@ -55,8 +55,8 @@ const VCartridge = () => {
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 2, 0);
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 4, 0);
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 6, 0);
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 8, 8);
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 9, 8);
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 8, WIDTH / 8);
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 9, HEIGHT / 8);
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 10, 0b00000000);
 
             init = true;
@@ -71,16 +71,16 @@ const VCartridge = () => {
             let vx = 0;
             let vy = 0;
             if (inputs & PAD_FLAG.Left) {
-                vx -= 2;
+                vx -= 1;
             }
             if (inputs & PAD_FLAG.Right) {
-                vx += 2;
+                vx += 1;
             }
             if (inputs & PAD_FLAG.Up) {
-                vy -= 2;
+                vy -= 1;
             }
             if (inputs & PAD_FLAG.Down) {
-                vy += 2;
+                vy += 1;
             }
 
             if (vx != 0 && vy != 0) {
@@ -91,8 +91,9 @@ const VCartridge = () => {
             x += vx;
             y += vy;
         }
-        mem.setInt16(ADR_SPRITE_HEAD + 4, x);
-        mem.setInt16(ADR_SPRITE_HEAD + 6, y);
+        x = (x % WIDTH + WIDTH) % WIDTH;
+        mem.setUint16(ADR_SPRITE_HEAD + 4, x);
+        mem.setUint16(ADR_SPRITE_HEAD + 6, y | 0);
     }
 
     return {
@@ -326,13 +327,14 @@ const VConsole = () => {
 
     /**
      * ImageDataに書き込み
-     * @param {number} x 
-     * @param {number} y 
-     * @param {number} r 
-     * @param {number} g 
-     * @param {number} b 
+     * @param {number} x
+     * @param {number} y
+     * @param {number} r
+     * @param {number} g
+     * @param {number} b
      */
     function setPixel(x, y, r, g, b) {
+        if (x < 0) console.warn(x, y);
         const index = (y * WIDTH + x) * 4;
         imgData.data[index + 0] = r;
         imgData.data[index + 1] = g;
@@ -366,8 +368,6 @@ const VConsole = () => {
         setPixel(x, y, bit5to8(r), bit5to8(g), bit5to8(b));
         return true;
     }
-
-
 
     /**
      * チップからパレットを取得してセット
@@ -451,8 +451,8 @@ const VConsole = () => {
         const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
         const drawX = mem.getInt16(sprite + 0);
         const drawY = mem.getInt16(sprite + 2);
-        const copyX = mem.getInt16(sprite + 4);
-        const copyY = mem.getInt16(sprite + 6);
+        const copyX = mem.getUint16(sprite + 4);
+        const copyY = mem.getUint16(sprite + 6);
         const tw = mem.getUint8(sprite + 8);
         const th = mem.getUint8(sprite + 9);
         const flag = mem.getUint8(sprite + 10);
@@ -475,20 +475,55 @@ const VConsole = () => {
     }
 
     function drawSprites() {
+        const active = [];
+        let top = HEIGHT;
+        let bottom = 0;
+
+        for (let i = 0; i < ADR_SPRITE_NUM; i++) {
+            const sprite = ADR_SPRITE_HEAD + i * ADR_SPRITE_SEEK;
+            const drawY = mem.getInt16(sprite + 2);
+            const tw = mem.getUint8(sprite + 8);
+            const th = mem.getUint8(sprite + 9);
+            if (tw * th > 0) {
+                active.push({ index: i, top: drawY, bottom: drawY + th * 8 });
+                if (drawY < top) top = drawY;
+                if (drawY + th * 8 > bottom) bottom = drawY + th * 8;
+            }
+        }
+
+        let cnt = 0;
+        const s = performance.now();
+
         for (let y = 0; y < HEIGHT; y++) {
+            if (y >= bottom || y < top) {
+                for (let x = 0; x < WIDTH; x++) {
+                    drawPallete(x, y, 0);
+                }
+                continue;
+            }
+
+            const online = [];
+            for (const i of active) {
+                if (y < i.bottom && y >= i.top) {
+                    online.push(i.index);
+                }
+            }
+
             for (let x = 0; x < WIDTH; x++) {
                 let drawn = false;
-                for (let i = 0; i < ADR_SPRITE_NUM; i++) {
+                for (const i of online) {
                     drawn = drawSprite(x, y, i);
                     if (drawn) {
                         break;
                     }
+                    cnt++;
                 }
                 if (!drawn) {
                     drawPallete(x, y, 0);
                 }
             }
         }
+        console.log((performance.now() - s).toFixed(2), cnt);
     }
 
     function update() {
@@ -564,12 +599,12 @@ const VConsole = () => {
     });
 
     const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("gd_main"));
-    const ctx = canvas.getContext("2d");
+    const ctx = canvas.getContext("2d", { alpha: false });
     canvas.width = WIDTH;
     canvas.height = HEIGHT;
 
     const k_targetInterval = 1000 / FPS;
-    const k_maxFrame = 3;
+    const k_maxFrame = 1;
 
     const _vConsole = typeof VConsole !== 'undefined' ? VConsole() : null;
     let _nextGameTick = performance.now();
@@ -583,6 +618,7 @@ const VConsole = () => {
      * @param {DOMHighResTimeStamp} ts
      */
     function mainloop(ts) {
+
         const currentTime = ts;
 
         let count = 0;
@@ -603,6 +639,7 @@ const VConsole = () => {
         }
 
         animationFrameId = requestAnimationFrame(mainloop);
+
     }
 
     /**
