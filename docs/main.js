@@ -10,8 +10,59 @@ const PAD_FLAG = {
     X: 1 << 5,
     Start: 1 << 6,
 }
+const ADR_INPUT = 0x0000;
+const ADR_PALETTE_COLOR0 = 0x0100;
 
-const VPad = (() => {
+const VCartridge = () => {
+    let x = 0;
+    let y = 0;
+    let vx = 0;
+    let vy = 0;
+
+    /**
+     * @param {DataView} mem
+     */
+    function update(mem) {
+        const inputs = mem.getUint8(ADR_INPUT);
+
+        vx = 0;
+        vy = 0;
+        if ((inputs & PAD_FLAG.Left) != 0) {
+            vx -= 4;
+        }
+        if (inputs & PAD_FLAG.Right) {
+            vx += 4;
+        }
+        if (inputs & PAD_FLAG.Up) {
+            vy -= 4;
+        }
+        if (inputs & PAD_FLAG.Down) {
+            vy += 4;
+        }
+
+        if (vx != 0 && vy != 0) {
+            vx /= Math.SQRT2;
+            vy /= Math.SQRT2;
+        }
+
+        x += vx;
+        y += vy;
+
+        if (inputs & PAD_FLAG.Start) {
+            x = 0;
+            y = 0;
+        }
+
+        mem.setUint16(0, x);
+        mem.setUint16(4, y);
+    }
+
+    return {
+        update: update,
+    }
+};
+
+const VPad = () => {
     const container = document.getElementById('gd_container');
     if (container) {
         //スクロール禁止
@@ -143,9 +194,9 @@ const VPad = (() => {
         update: update,
         get: get,
     }
-})();
+};
 
-const KPad = (() => {
+const KPad = () => {
     /** @type {{[key:string]:number}} */
     const keyDatabase = {
         ArrowLeft: PAD_FLAG.Left,
@@ -195,23 +246,17 @@ const KPad = (() => {
         update: update,
         get: get,
     }
-})();
+};
 
-const Game = (() => {
-    const canvas = /** @type {HTMLCanvasElement|null} */ (document.getElementById('gd_main'));
-    if (canvas == null) return;
-
-    canvas.width = WIDTH;
-    canvas.height = HEIGHT;
-
-    const ctx = canvas.getContext('2d');
-    if (ctx == null) return;
-
-    const imgData = ctx.createImageData(WIDTH, HEIGHT);
-    const buffer = new ArrayBuffer(0x400);
+const VConsole = () => {
+    const _vPad = VPad();
+    const _kPad = KPad();
+    const buffer = new ArrayBuffer(65536);
     const mem = new DataView(buffer);
+    const cart = typeof VCartridge !== 'undefined' ? VCartridge() : null;
 
-    const ADR_PALETTE_COLOR0 = 0x300;
+    const imgData = new ImageData(WIDTH, HEIGHT);
+
     // パレット初期化
     for (let i = 0; i < 0x80; i++) {
         const c = (i << 8) | (i << 1) | (i >> 6);
@@ -261,49 +306,18 @@ const Game = (() => {
         setPixel(x, y, bit5to8(r), bit5to8(g), bit5to8(b));
     }
 
-    const update = () => {
-        VPad.update();
-        KPad.update();
-        const vinputs = VPad.get();
-        const kinputs = KPad.get();
+    function update() {
+        _vPad.update();
+        _kPad.update();
+        const vinputs = _vPad.get();
+        const kinputs = _kPad.get();
         const inputs = vinputs | kinputs;
+        mem.setUint8(ADR_INPUT, inputs);
 
-        mem.setUint32(4 * 2, 0);
-        mem.setUint32(4 * 3, 0);
-        if ((inputs & PAD_FLAG.Left) != 0) {
-            mem.setUint32(4 * 2, mem.getUint32(4 * 2) + 0xFFFC_0000);
-        }
-        if (inputs & PAD_FLAG.Right) {
-            mem.setUint32(4 * 2, mem.getUint32(4 * 2) + 0x0004_0000);
-        }
-        if (inputs & PAD_FLAG.Up) {
-            mem.setUint32(4 * 3, mem.getUint32(4 * 3) + 0xFFFC_0000);
-        }
-        if (inputs & PAD_FLAG.Down) {
-            mem.setUint32(4 * 3, mem.getUint32(4 * 3) + 0x0004_0000);
-        }
-
-        if (mem.getUint32(4 * 2) != 0 && mem.getUint32(4 * 3) != 0) {
-            /**
-             * @param {number} x
-             */
-            function div_sqrt2(x) {
-                return ((x >> 16) * 46341) + (((x & 0xFFFF) * 46341) >> 16);
-            }
-            mem.setUint32(4 * 2, div_sqrt2(mem.getUint32(4 * 2)));
-            mem.setUint32(4 * 3, div_sqrt2(mem.getUint32(4 * 3)));
-        }
-        mem.setUint32(0, mem.getUint32(0) + (mem.getUint32(4 * 2)));
-        mem.setUint32(4, mem.getUint32(4) + (mem.getUint32(4 * 3)));
-
-        if (inputs & PAD_FLAG.Start) {
-            mem.setUint32(0, 0);
-            mem.setUint32(4, 0);
-        }
+        cart?.update(mem);
     }
 
-    // 毎フレーム描画ループ
-    const draw = () => {
+    function draw() {
         for (let y = 0; y < HEIGHT; y++) {
             for (let x = 0; x < WIDTH; x++) {
                 setPixelAsPalette(x, y, 0);
@@ -313,15 +327,18 @@ const Game = (() => {
                 setPixelAsPalette(x, y, c);
             }
         }
-        ctx.putImageData(imgData, 0, 0);
+    }
+
+    function getImageData() {
+        return imgData;
     }
 
     return {
         update: update,
         draw: draw,
-    };
-})();
-
+        getImageData: getImageData,
+    }
+};
 
 (() => {
     const pause = {
@@ -358,9 +375,17 @@ const Game = (() => {
         SetPauseState('user', checkbox.checked);
     });
 
-    const targetInterval = 1000 / FPS;
-    const maxFrame = 3;
-    let nextGameTick = performance.now();
+    const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("gd_main"));
+    const ctx = canvas.getContext("2d");
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+
+    const k_targetInterval = 1000 / FPS;
+    const k_maxFrame = 3;
+
+    const _vConsole = typeof VConsole !== 'undefined' ? VConsole() : null;
+    let _nextGameTick = performance.now();
+
     /**
      * @type {number | null}
      */
@@ -373,16 +398,20 @@ const Game = (() => {
         const currentTime = ts;
 
         let count = 0;
-        while (currentTime >= nextGameTick) {
-            if (count < maxFrame) {
-                Game?.update();
+        while (currentTime >= _nextGameTick) {
+            if (count < k_maxFrame) {
+                _vConsole?.update();
                 count++;
             }
-            nextGameTick += targetInterval;
+            _nextGameTick += k_targetInterval;
         }
 
         if (count > 0) {
-            Game?.draw();
+            _vConsole?.draw();
+            const imgData = _vConsole?.getImageData();
+            if (imgData) {
+                ctx?.putImageData(imgData, 0, 0);
+            }
         }
 
         animationFrameId = requestAnimationFrame(mainloop);
@@ -399,7 +428,7 @@ const Game = (() => {
             }
         } else {
             if (animationFrameId == null) {
-                nextGameTick = performance.now();
+                _nextGameTick = performance.now();
                 animationFrameId = requestAnimationFrame(mainloop);
             }
         }
