@@ -26,19 +26,16 @@ body:has(#gd_maximize:checked) {
     overflow: hidden;
 }
 
-.header textarea {
+.followarea {
     width: 100%;
-    box-sizing: border-box;
-    border: none;
-    resize: none;
-    text-wrap: nowrap;
+    white-space: nowrap;
     overflow: hidden;
     padding: 0;
     margin: 0;
-    background-color: #0000;
     color: #0e0;
+    user-select: all;
     font-family: monospace;
-    font-size: 1em;
+    font-size: 10px;
     height: 3em;
 }
 

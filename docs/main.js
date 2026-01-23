@@ -12,13 +12,13 @@ const PAD_FLAG = {
 }
 
 const DebugTextArea = (() => {
-    const textarea = /** @type {HTMLTextAreaElement} */ (document.getElementById("gd_debugtext"));
+    const textarea = /** @type {HTMLPreElement} */ (document.getElementById("gd_debugtext"));
 
     const log = [...Array(3).fill("")];
 
     function update() {
         if (textarea) {
-            textarea.value = log.join("\n");
+            textarea.innerText = log.join("\n");
         }
     }
 
