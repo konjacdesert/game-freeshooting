@@ -10,8 +10,8 @@
 .container:has(#gd_maximize:checked) {
     position: fixed !important;
     inset: 0;
-    width: 100vw !important;
-    height: 100vh !important;
+    width: 100% !important;
+    height: 100% !important;
 }
 
 body:has(#gd_maximize:checked) {
