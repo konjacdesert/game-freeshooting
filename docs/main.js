@@ -11,6 +11,23 @@ const PAD_FLAG = {
     Start: 1 << 6,
 }
 
+const DebugTextArea = (() => {
+    const textarea = /** @type {HTMLTextAreaElement} */ (document.getElementById("gd_debugtext"));
+
+    const log = [...Array(3).fill("")];
+
+    function update() {
+        if (textarea) {
+            textarea.value = log.join("\n");
+        }
+    }
+
+    return {
+        log: log,
+        update: update,
+    }
+})();
+
 const VCartridge = () => {
     let init = false;
 
@@ -25,23 +42,19 @@ const VCartridge = () => {
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * (ADR_PALETTE_SEPARATE + 0), 0b1_00000_00000_00000);
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * (ADR_PALETTE_SEPARATE + 1), 0b0_11111_11111_11111);
 
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 0, 0b10101010);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 1, 0b00000001);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 2, 0b10000000);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 3, 0b00000001);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 4, 0b10000000);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 5, 0b00000001);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 6, 0b10000000);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 7, 0b01010101);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 0, 0xff);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 1, 0xff);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 2, 0xff);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 3, 0xff);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 4, 0xff);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 5, 0xff);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 6, 0xff);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 7, 0xff);
 
             mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 0, 0xf);// chip index
             mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 0 + 1, 0b0000_0001);// palette 1
-            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 1 + 1, 0b1000_0000);//
-            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 2 + 1, 0b1000_0000);//
-            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 3 + 1, 0b1000_0000);//
 
-            mem.setUint8(ADR_TABLE_HEAD + 2, 2);
-            mem.setUint8(ADR_TABLE_HEAD + 3, 2);
+            mem.setUint8(ADR_TABLE_HEAD + 3, 4);
 
             mem.setInt16(ADR_SPRITE_HEAD + 0, 0);
             mem.setInt16(ADR_SPRITE_HEAD + 2, 0);
@@ -102,13 +115,11 @@ const VCartridge = () => {
 };
 
 const VPad = () => {
-    const container = document.getElementById('gd_container');
-    if (container) {
-        //スクロール禁止
-        container.addEventListener("wheel", function (e) { e.preventDefault(); }, { passive: false });
-        //右クリックメニュー禁止
-        container.addEventListener("contextmenu", function (e) { e.preventDefault(); }, { passive: false });
-    }
+    //スクロール禁止
+    document.getElementById('gd_container')?.addEventListener("wheel", function (e) { e.preventDefault(); }, { passive: false });
+    document.getElementById('gd_container')?.addEventListener("scroll", function (e) { e.preventDefault(); }, { passive: false });
+    //右クリックメニュー禁止
+    document.getElementById('gd_main_container')?.addEventListener("contextmenu", function (e) { e.preventDefault(); }, { passive: false });
 
     /** @type {{elm:HTMLElement|null,areas:{x:number,y:number,w:number,h:number,f:number}[]}[]} */
     const touchDatabase = [
@@ -350,10 +361,7 @@ const VConsole = () => {
      */
     function drawPallete(x, y, p) {
         const c = mem.getUint16(ADR_PALETTE_HEAD + p * 2);
-        const meta = (c >> 15) & 0x1;
-        if (p != 0 && meta == 1) {
-            return false;
-        }
+
         const r = ((c >> 0xa) & 0b11111);
         const g = ((c >> 0x5) & 0b11111);
         const b = ((c >> 0x0) & 0b11111);
@@ -367,6 +375,13 @@ const VConsole = () => {
 
         setPixel(x, y, bit5to8(r), bit5to8(g), bit5to8(b));
         return true;
+    }
+
+    function drawPalleteF(x, y, p) {
+        if (p % 16 == 0) {
+            return false;
+        }
+        return drawPallete(x, y, p);
     }
 
     /**
@@ -390,7 +405,7 @@ const VConsole = () => {
         const c4 = (d4 >> (7 - x)) & 0x1;
 
         const c = (c4 << 3) | (c3 << 2) | (c2 << 1) | (c1 << 0);
-        return drawPallete(sx, sy, c + p * ADR_PALETTE_SEPARATE);
+        return drawPalleteF(sx, sy, c + p * ADR_PALETTE_SEPARATE);
     }
 
     /**
@@ -474,21 +489,43 @@ const VConsole = () => {
         return drawTable(sx, sy, tableIndex, cx, cy, dx, dy);
     }
 
+    /**
+     * @param {number} index
+     */
+    function getSpriteBound(index) {
+        const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
+        const drawX = mem.getInt16(sprite + 0);
+        const drawY = mem.getInt16(sprite + 2);
+        const tw = mem.getUint8(sprite + 8);
+        const th = mem.getUint8(sprite + 9);
+
+        const left = Math.max(0, drawX);
+        const top = Math.max(0, drawY);
+        const right = Math.min(WIDTH, drawX + tw * 8);
+        const bottom = Math.min(HEIGHT, drawY + th * 8);
+
+        return { left: left, top: top, right: right, bottom: bottom };
+    }
+
     function drawSprites() {
         const active = [];
         let top = HEIGHT;
         let bottom = 0;
 
         for (let i = 0; i < ADR_SPRITE_NUM; i++) {
-            const sprite = ADR_SPRITE_HEAD + i * ADR_SPRITE_SEEK;
-            const drawY = mem.getInt16(sprite + 2);
-            const tw = mem.getUint8(sprite + 8);
-            const th = mem.getUint8(sprite + 9);
-            if (tw * th > 0) {
-                active.push({ index: i, top: drawY, bottom: drawY + th * 8 });
-                if (drawY < top) top = drawY;
-                if (drawY + th * 8 > bottom) bottom = drawY + th * 8;
+            const bound = getSpriteBound(i);
+            if (bound.left >= bound.right || bound.top >= bound.bottom) {
+                continue;
             }
+            active.push({
+                index: i,
+                top: bound.top,
+                bottom: bound.bottom,
+                left: bound.left,
+                right: bound.right,
+            });
+            if (bound.top < top) top = bound.top;
+            if (bound.bottom > bottom) bottom = bound.bottom;
         }
 
         let cnt = 0;
@@ -505,14 +542,17 @@ const VConsole = () => {
             const online = [];
             for (const i of active) {
                 if (y < i.bottom && y >= i.top) {
-                    online.push(i.index);
+                    online.push(i);
                 }
             }
 
             for (let x = 0; x < WIDTH; x++) {
                 let drawn = false;
                 for (const i of online) {
-                    drawn = drawSprite(x, y, i);
+                    if (x < i.left || x >= i.right) {
+                        continue;
+                    }
+                    drawn = drawSprite(x, y, i.index);
                     if (drawn) {
                         break;
                     }
@@ -523,7 +563,8 @@ const VConsole = () => {
                 }
             }
         }
-        console.log((performance.now() - s).toFixed(2), cnt);
+        DebugTextArea.log[0] = `pf:${(performance.now() - s).toFixed(5)}`;
+        DebugTextArea.log[1] = `ct:${cnt}`;
     }
 
     function update() {
@@ -629,6 +670,8 @@ const VConsole = () => {
             }
             _nextGameTick += k_targetInterval;
         }
+
+        DebugTextArea.update();
 
         if (count > 0) {
             _vConsole?.draw();
