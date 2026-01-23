@@ -54,7 +54,8 @@ const VCartridge = () => {
             mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 0, 0xf);// chip index
             mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 0 + 1, 0b0000_0001);// palette 1
 
-            mem.setUint8(ADR_TABLE_HEAD + 3, 4);
+            mem.setUint8(ADR_TABLE_HEAD + 2, 2);
+            mem.setUint8(ADR_TABLE_HEAD + 3, 2);
 
             mem.setInt16(ADR_SPRITE_HEAD + 0, 0);
             mem.setInt16(ADR_SPRITE_HEAD + 2, 0);
@@ -377,6 +378,11 @@ const VConsole = () => {
         return true;
     }
 
+    /**
+     * @param {number} x
+     * @param {number} y
+     * @param {number} p
+     */
     function drawPalleteF(x, y, p) {
         if (p % 16 == 0) {
             return false;
