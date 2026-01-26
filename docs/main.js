@@ -121,7 +121,8 @@ const VCartridge = () => {
             y += vy * spd / 60;
         }
 
-        x = mod(x, WIDTH);
+        while (x < 0) x += WIDTH;
+        while (x >= WIDTH) x -= WIDTH;
 
         mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 2, x | 0);
         mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 4, y | 0);
@@ -346,8 +347,6 @@ const ADR_INPUT = ADR_WORK_HEAD + 0x00;
 
 const MEM_MAX = ADR_WORK_HEAD + 0x100;
 
-const mod = (/** @type {number} */ a, /** @type {number} */ n) => ((a % n) + n) % n;
-
 const VConsole = () => {
     const _vPad = VPad();
     const _kPad = KPad();
@@ -508,8 +507,8 @@ const VConsole = () => {
         const ccy = flipY ? (th - 1 - cy) : cy;
 
         const c = offset + ccx + ccy * tw;
-        const dx = mod(lx, CELL);
-        const dy = mod(ly, CELL);
+        const dx = lx & 0b111;
+        const dy = ly & 0b111;
 
         return drawCell(sx, sy, c, dx, dy, flipX, flipY);
     }
