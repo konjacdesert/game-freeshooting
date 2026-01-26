@@ -37,6 +37,7 @@ body:has(#gd_maximize:checked) {
     font-family: monospace;
     font-size: 10px;
     height: 3em;
+    line-height: 1em;
 }
 
 .main {
