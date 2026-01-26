@@ -1,6 +1,9 @@
 const FPS = 60;
 const WIDTH = 224;
 const HEIGHT = 288;
+const CELL = 8;
+const CW = WIDTH / CELL;
+const CH = HEIGHT / CELL;
 const PAD_FLAG = {
     Left: 1 << 0,
     Right: 1 << 1,
@@ -33,6 +36,7 @@ const VCartridge = () => {
 
     let x = 0;
     let y = 0;
+    let spd = 0;
 
     /**
      * @param {DataView} mem
@@ -42,36 +46,41 @@ const VCartridge = () => {
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * (ADR_PALETTE_SEPARATE + 0), 0b1_00000_00000_00000);
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * (ADR_PALETTE_SEPARATE + 1), 0b0_11111_11111_11111);
 
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 0, 0xff);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 1, 0xff);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 2, 0xff);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 3, 0xff);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 4, 0xff);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 5, 0xff);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 6, 0xff);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xf + 4 * 7, 0xff);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 0, 0b00000011);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 1, 0b00001100);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 2, 0b00010000);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 3, 0b00100000);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 4, 0b01000000);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 5, 0b01000000);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 6, 0b10000000);
+            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 7, 0b10000000);
 
-            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 0, 0xf);// chip index
-            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 0 + 1, 0b0000_0001);// palette 1
+            for (let wh = 0; wh < CW * CH; wh++) {
+                mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * wh, 0x10);// chip index
+                const x = wh % CW;
+                const y = (wh / CW) | 0;
+                const flag = ((x % 2) == 1 ? 0b00010000 : 0) | ((y % 2) == 1 ? 0b00100000 : 0) | 1;
+                mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * wh + 1, flag);// palette 1
+            }
 
-            mem.setUint8(ADR_TABLE_HEAD + 2, 2);
-            mem.setUint8(ADR_TABLE_HEAD + 3, 2);
+            mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 0, 0); // left
+            mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 1, 0); // top
+            mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 2, CW); // right
+            mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 3, CH); // bottom
 
-            mem.setInt16(ADR_SPRITE_HEAD + 0, 0);
-            mem.setInt16(ADR_SPRITE_HEAD + 2, 0);
-            mem.setInt16(ADR_SPRITE_HEAD + 4, 0);
-            mem.setInt16(ADR_SPRITE_HEAD + 6, 0);
-            mem.setUint8(ADR_SPRITE_HEAD + 8, 8);
-            mem.setUint8(ADR_SPRITE_HEAD + 9, 8);
-            mem.setUint8(ADR_SPRITE_HEAD + 10, 0b00000000);
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 0, 0b0000_0011); // mask_valid
+            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 2, 0); // x
+            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 4, 0); // y
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 6, CW); // cw
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 7, CH); // ch
+            mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 8, 0); // cell offset
 
-            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 0, 0);
-            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 2, 0);
-            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 4, 0);
-            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 6, 0);
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 8, WIDTH / 8);
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 9, HEIGHT / 8);
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 10, 0b00000000);
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 0, 0b0000_0011); // mask_valid
+            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 2, 0); // x
+            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 4, 0); // y
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 6, CW); // cw
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 7, CH); // ch
+            mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 8, 0); // cell offset
 
             init = true;
         }
@@ -102,12 +111,24 @@ const VCartridge = () => {
                 vy /= Math.SQRT2;
             }
 
-            x += vx;
-            y += vy;
+            if (vx != 0 || vy != 0) {
+                spd++;
+            } else {
+                spd = 0;
+            }
+
+            x += vx * spd / 60;
+            y += vy * spd / 60;
         }
-        x = (x % WIDTH + WIDTH) % WIDTH;
-        mem.setUint16(ADR_SPRITE_HEAD + 4, x);
-        mem.setUint16(ADR_SPRITE_HEAD + 6, y | 0);
+
+        x = mod(x, WIDTH);
+
+        mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 2, x | 0);
+        mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 4, y | 0);
+
+        mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 2, (x | 0) - WIDTH);
+        mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 4, y | 0);
+
     }
 
     return {
@@ -312,12 +333,12 @@ const ADR_CELL_HEAD = ADR_CHIP_HEAD + ADR_CHIP_SEEK * ADR_CHIP_NUM;
 const ADR_CELL_SEEK = 2;
 const ADR_CELL_NUM = 4096;
 
-const ADR_TABLE_HEAD = ADR_CELL_HEAD + ADR_CELL_SEEK * ADR_CELL_NUM;
-const ADR_TABLE_SEEK = 6;
-const ADR_TABLE_NUM = 4;
+const ADR_MASK_HEAD = ADR_CELL_HEAD + ADR_CELL_SEEK * ADR_CELL_NUM;
+const ADR_MASK_SEEK = 4;
+const ADR_MASK_NUM = 16;
 
-const ADR_SPRITE_HEAD = ADR_TABLE_HEAD + ADR_TABLE_SEEK * ADR_TABLE_NUM;
-const ADR_SPRITE_SEEK = 16;
+const ADR_SPRITE_HEAD = ADR_MASK_HEAD + ADR_MASK_SEEK * ADR_MASK_NUM;
+const ADR_SPRITE_SEEK = 10;
 const ADR_SPRITE_NUM = 128;
 
 const ADR_WORK_HEAD = ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * ADR_SPRITE_NUM;
@@ -421,13 +442,15 @@ const VConsole = () => {
      * @param {number} y
      * @param {any} sx
      * @param {any} sy
+     * @param {boolean} fx
+     * @param {boolean} fy
      */
-    function drawCell(sx, sy, index, x, y) {
+    function drawCell(sx, sy, index, x, y, fx, fy) {
         const chip = mem.getUint8(ADR_CELL_HEAD + index * ADR_CELL_SEEK);
         const flag = mem.getUint8(ADR_CELL_HEAD + index * ADR_CELL_SEEK + 1);
         const palette = flag & 0b1111;
-        const flipX = (flag & 0b00010000) != 0;
-        const flipY = (flag & 0b00100000) != 0;
+        const flipX = ((flag & 0b00010000) != 0) != fx;
+        const flipY = ((flag & 0b00100000) != 0) != fy;
         const invalid = (flag & 0b10000000) != 0;
 
         if (invalid) {
@@ -441,25 +464,15 @@ const VConsole = () => {
     }
 
     /**
-     * テーブルからセル情報を取得してセット
      * @param {number} index
-     * @param {number} cx
-     * @param {number} cy
-     * @param {number} x
-     * @param {number} y
-     * @param {any} sx
-     * @param {any} sy
      */
-    function drawTable(sx, sy, index, cx, cy, x, y) {
-        const startOffset = mem.getUint16(ADR_TABLE_HEAD + index * ADR_TABLE_SEEK);
-        const width = mem.getUint8(ADR_TABLE_HEAD + index * ADR_TABLE_SEEK + 2);
-        const height = mem.getUint8(ADR_TABLE_HEAD + index * ADR_TABLE_SEEK + 3);
-
-        cx = mod(cx, width);
-        cy = mod(cy, height);
-        const cell = startOffset + cx + cy * width;
-
-        return drawCell(sx, sy, cell, x, y);
+    function getMaskBound(index) {
+        const mask = ADR_MASK_HEAD + index * ADR_MASK_SEEK;
+        const left = mem.getUint8(mask + 0) * CELL;
+        const top = mem.getUint8(mask + 1) * CELL;
+        const right = mem.getUint8(mask + 2) * CELL;
+        const bottom = mem.getUint8(mask + 3) * CELL;
+        return { left: left, top: top, right: right, bottom: bottom };
     }
 
     /**
@@ -470,29 +483,35 @@ const VConsole = () => {
      */
     function drawSprite(sx, sy, index) {
         const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
-        const drawX = mem.getInt16(sprite + 0);
-        const drawY = mem.getInt16(sprite + 2);
-        const copyX = mem.getUint16(sprite + 4);
-        const copyY = mem.getUint16(sprite + 6);
-        const tw = mem.getUint8(sprite + 8);
-        const th = mem.getUint8(sprite + 9);
-        const flag = mem.getUint8(sprite + 10);
-        const tableIndex = (flag & 0b00000011);
-        // const flipX = (flag & 0b00010000) != 0;
-        // const flipY = (flag & 0b00100000) != 0;
+        const flags = mem.getUint8(sprite + 0);
+        const valid = (flags & 0b0001) != 0;
 
-        const lx = sx - drawX;
-        const ly = sy - drawY;
-        if (lx < 0 || ly < 0 || lx >= tw * 8 || ly >= th * 8) {
+        if (!valid) {
             return false;
         }
 
-        const cx = mod(((lx + copyX) >> 3), tw);
-        const cy = mod(((ly + copyY) >> 3), th);
-        const dx = mod(lx + copyX, 8);
-        const dy = mod(ly + copyY, 8);
+        const flipX = (flags & 0b0100) != 0;
+        const flipY = (flags & 0b1000) != 0;
 
-        return drawTable(sx, sy, tableIndex, cx, cy, dx, dy);
+        const drawX = mem.getInt16(sprite + 2);
+        const drawY = mem.getInt16(sprite + 4);
+        const tw = mem.getUint8(sprite + 6);
+        const th = mem.getUint8(sprite + 7);
+
+        const offset = mem.getUint16(sprite + 8);
+
+        const lx = sx - drawX;
+        const ly = sy - drawY;
+        const cx = (lx >> 3);
+        const cy = (ly >> 3);
+        const ccx = flipX ? (tw - 1 - cx) : cx;
+        const ccy = flipY ? (th - 1 - cy) : cy;
+
+        const c = offset + ccx + ccy * tw;
+        const dx = mod(lx, CELL);
+        const dy = mod(ly, CELL);
+
+        return drawCell(sx, sy, c, dx, dy, flipX, flipY);
     }
 
     /**
@@ -500,23 +519,42 @@ const VConsole = () => {
      */
     function getSpriteBound(index) {
         const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
-        const drawX = mem.getInt16(sprite + 0);
-        const drawY = mem.getInt16(sprite + 2);
-        const tw = mem.getUint8(sprite + 8);
-        const th = mem.getUint8(sprite + 9);
+        const flags = mem.getUint8(sprite + 0);
+        const valid = (flags & 0b0001) != 0;
 
-        const left = Math.max(0, drawX);
-        const top = Math.max(0, drawY);
-        const right = Math.min(WIDTH, drawX + tw * 8);
-        const bottom = Math.min(HEIGHT, drawY + th * 8);
+        if (!valid) {
+            return { left: 0, top: 0, right: 0, bottom: 0 };
+        }
+
+        // const mode = (flags & 0b0010) != 0;
+        const maskIndex = (flags >> 4) & 0b1111;
+
+        const drawX = mem.getInt16(sprite + 2);
+        const drawY = mem.getInt16(sprite + 4);
+        const tw = mem.getUint8(sprite + 6);
+        const th = mem.getUint8(sprite + 7);
+
+        const mask = getMaskBound(maskIndex);
+
+        const left = Math.max(0, drawX, mask.left);
+        const top = Math.max(0, drawY, mask.top);
+        const right = Math.min(WIDTH, drawX + tw * CELL, mask.right);
+        const bottom = Math.min(HEIGHT, drawY + th * CELL, mask.bottom);
+
+        // console.log(tw, th);
 
         return { left: left, top: top, right: right, bottom: bottom };
     }
 
     function drawSprites() {
+        let cnt = 0;
+        const s = performance.now();
+
         const active = [];
         let top = HEIGHT;
         let bottom = 0;
+        let left = WIDTH;
+        let right = 0;
 
         for (let i = 0; i < ADR_SPRITE_NUM; i++) {
             const bound = getSpriteBound(i);
@@ -530,12 +568,12 @@ const VConsole = () => {
                 left: bound.left,
                 right: bound.right,
             });
+            cnt++;
             if (bound.top < top) top = bound.top;
             if (bound.bottom > bottom) bottom = bound.bottom;
+            if (bound.left < left) left = bound.left;
+            if (bound.right > right) right = bound.right;
         }
-
-        let cnt = 0;
-        const s = performance.now();
 
         for (let y = 0; y < HEIGHT; y++) {
             if (y >= bottom || y < top) {
@@ -546,13 +584,28 @@ const VConsole = () => {
             }
 
             const online = [];
+            let lleft = WIDTH;
+            let lright = 0;
             for (const i of active) {
                 if (y < i.bottom && y >= i.top) {
-                    online.push(i);
+                    online.push({
+                        index: i.index,
+                        left: i.left,
+                        right: i.right,
+                        progressX: 0,
+                        currentX: 0,
+                    });
+                    if (i.left < lleft) lleft = i.left;
+                    if (i.right > lright) lright = i.right;
                 }
             }
 
             for (let x = 0; x < WIDTH; x++) {
+                if (x >= lright || x < lleft) {
+                    drawPallete(x, y, 0);
+                    continue;
+                }
+
                 let drawn = false;
                 for (const i of online) {
                     if (x < i.left || x >= i.right) {
@@ -562,7 +615,6 @@ const VConsole = () => {
                     if (drawn) {
                         break;
                     }
-                    cnt++;
                 }
                 if (!drawn) {
                     drawPallete(x, y, 0);
@@ -571,6 +623,7 @@ const VConsole = () => {
         }
         DebugTextArea.log[0] = `pf:${(performance.now() - s).toFixed(5)}`;
         DebugTextArea.log[1] = `ct:${cnt}`;
+        DebugTextArea.log[2] = `t:${top} b:${bottom} l:${left} r:${right}`;
     }
 
     function update() {
@@ -588,15 +641,6 @@ const VConsole = () => {
 
         drawSprites();
 
-        // for (let y = 0; y < HEIGHT; y++) {
-        //     for (let x = 0; x < WIDTH; x++) {
-        //         drawPallete(x, y, 0);
-        //         const xx = (x + mem.getUint16(0)) / 8 | 0;
-        //         const yy = (y + mem.getUint16(4)) / 8 | 0;
-        //         const c = (xx + yy) % 0x80;
-        //         drawPallete(x, y, c);
-        //     }
-        // }
     }
 
     function getImageData() {
