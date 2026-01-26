@@ -347,31 +347,47 @@ const ADR_INPUT = ADR_WORK_HEAD + 0x00;
 
 const MEM_MAX = ADR_WORK_HEAD + 0x100;
 
-const VConsole = () => {
+const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
+    canvas.width = WIDTH;
+    canvas.height = HEIGHT;
+
     const _vPad = VPad();
     const _kPad = KPad();
     console.log("VRAM_MAX:", MEM_MAX);
-    const buffer = new ArrayBuffer(MEM_MAX);
-    const mem = new DataView(buffer);
+    const vram_buf = new ArrayBuffer(MEM_MAX);
+    const vram = new DataView(vram_buf);
+    const vram_u8 = new Uint8Array(vram_buf);
     const cart = typeof VCartridge !== 'undefined' ? VCartridge() : null;
 
-    const imgData = new ImageData(WIDTH, HEIGHT);
+    const /** @type {CanvasRenderingContext2D} */ ctx = canvas.getContext("2d", { alpha: false });
+    const imageData = ctx.createImageData(canvas.width, canvas.height);
+    const frame_u32 = new Uint32Array(imageData.data.buffer);
+    frame_u32.fill(0xff000000);
+
+    const precalc_color = new Uint32Array(32768);
+    for (let i = 0; i < precalc_color.length; i++) {
+        const r = ((i >> 0xa) & 0b11111);
+        const g = ((i >> 0x5) & 0b11111);
+        const b = ((i >> 0x0) & 0b11111);
+
+        /**
+         * @param {number} v
+         */
+        function bit5to8(v) {
+            return (v << 3) | (v >> 2);
+        }
+
+        precalc_color[i] = 0xff000000 | (bit5to8(r) << 0x0) | (bit5to8(g) << 0x8) | (bit5to8(b) << 0x10);
+    }
 
     /**
      * ImageDataに書き込み
      * @param {number} x
      * @param {number} y
-     * @param {number} r
-     * @param {number} g
-     * @param {number} b
+     * @param {number} c
      */
-    function setPixel(x, y, r, g, b) {
-        if (x < 0) console.warn(x, y);
-        const index = (y * WIDTH + x) * 4;
-        imgData.data[index + 0] = r;
-        imgData.data[index + 1] = g;
-        imgData.data[index + 2] = b;
-        imgData.data[index + 3] = 0xff;
+    function setPixel(x, y, c) {
+        frame_u32[y * WIDTH + x] = c;
     }
 
     /**
@@ -381,20 +397,8 @@ const VConsole = () => {
      * @param {number} p
      */
     function drawPallete(x, y, p) {
-        const c = mem.getUint16(ADR_PALETTE_HEAD + p * 2);
-
-        const r = ((c >> 0xa) & 0b11111);
-        const g = ((c >> 0x5) & 0b11111);
-        const b = ((c >> 0x0) & 0b11111);
-
-        /**
-         * @param {number} v
-         */
-        function bit5to8(v) {
-            return (v << 3) | (v >> 2);
-        }
-
-        setPixel(x, y, bit5to8(r), bit5to8(g), bit5to8(b));
+        const c = vram.getUint16(ADR_PALETTE_HEAD + p * 2);
+        setPixel(x, y, precalc_color[c]);
         return true;
     }
 
@@ -420,10 +424,11 @@ const VConsole = () => {
      * @param {number} sy
      */
     function drawChip(sx, sy, index, x, y, p) {
-        const d1 = mem.getUint8(ADR_CHIP_HEAD + index * ADR_CHIP_SEEK + y * 4 + 0);
-        const d2 = mem.getUint8(ADR_CHIP_HEAD + index * ADR_CHIP_SEEK + y * 4 + 1);
-        const d3 = mem.getUint8(ADR_CHIP_HEAD + index * ADR_CHIP_SEEK + y * 4 + 2);
-        const d4 = mem.getUint8(ADR_CHIP_HEAD + index * ADR_CHIP_SEEK + y * 4 + 3);
+        const adr = ADR_CHIP_HEAD + index * ADR_CHIP_SEEK + y * 4;
+        const d1 = vram_u8[adr + 0];
+        const d2 = vram_u8[adr + 1];
+        const d3 = vram_u8[adr + 2];
+        const d4 = vram_u8[adr + 3];
 
         const c1 = (d1 >> (7 - x)) & 0x1;
         const c2 = (d2 >> (7 - x)) & 0x1;
@@ -445,8 +450,8 @@ const VConsole = () => {
      * @param {boolean} fy
      */
     function drawCell(sx, sy, index, x, y, fx, fy) {
-        const chip = mem.getUint8(ADR_CELL_HEAD + index * ADR_CELL_SEEK);
-        const flag = mem.getUint8(ADR_CELL_HEAD + index * ADR_CELL_SEEK + 1);
+        const chip = vram_u8[ADR_CELL_HEAD + index * ADR_CELL_SEEK + 0];
+        const flag = vram_u8[ADR_CELL_HEAD + index * ADR_CELL_SEEK + 1];
         const palette = flag & 0b1111;
         const flipX = ((flag & 0b00010000) != 0) != fx;
         const flipY = ((flag & 0b00100000) != 0) != fy;
@@ -467,10 +472,10 @@ const VConsole = () => {
      */
     function getMaskBound(index) {
         const mask = ADR_MASK_HEAD + index * ADR_MASK_SEEK;
-        const left = mem.getUint8(mask + 0) * CELL;
-        const top = mem.getUint8(mask + 1) * CELL;
-        const right = mem.getUint8(mask + 2) * CELL;
-        const bottom = mem.getUint8(mask + 3) * CELL;
+        const left = vram_u8[mask + 0] * CELL;
+        const top = vram_u8[mask + 1] * CELL;
+        const right = vram_u8[mask + 2] * CELL;
+        const bottom = vram_u8[mask + 3] * CELL;
         return { left: left, top: top, right: right, bottom: bottom };
     }
 
@@ -482,7 +487,7 @@ const VConsole = () => {
      */
     function drawSprite(sx, sy, index) {
         const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
-        const flags = mem.getUint8(sprite + 0);
+        const flags = vram_u8[sprite + 0];
         const valid = (flags & 0b0001) != 0;
 
         if (!valid) {
@@ -492,12 +497,12 @@ const VConsole = () => {
         const flipX = (flags & 0b0100) != 0;
         const flipY = (flags & 0b1000) != 0;
 
-        const drawX = mem.getInt16(sprite + 2);
-        const drawY = mem.getInt16(sprite + 4);
-        const tw = mem.getUint8(sprite + 6);
-        const th = mem.getUint8(sprite + 7);
+        const drawX = vram.getInt16(sprite + 2);
+        const drawY = vram.getInt16(sprite + 4);
+        const tw = vram_u8[sprite + 6];
+        const th = vram_u8[sprite + 7];
 
-        const offset = mem.getUint16(sprite + 8);
+        const offset = vram_u8[sprite + 8];
 
         const lx = sx - drawX;
         const ly = sy - drawY;
@@ -518,7 +523,7 @@ const VConsole = () => {
      */
     function getSpriteBound(index) {
         const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
-        const flags = mem.getUint8(sprite + 0);
+        const flags = vram_u8[sprite + 0];
         const valid = (flags & 0b0001) != 0;
 
         if (!valid) {
@@ -528,10 +533,10 @@ const VConsole = () => {
         // const mode = (flags & 0b0010) != 0;
         const maskIndex = (flags >> 4) & 0b1111;
 
-        const drawX = mem.getInt16(sprite + 2);
-        const drawY = mem.getInt16(sprite + 4);
-        const tw = mem.getUint8(sprite + 6);
-        const th = mem.getUint8(sprite + 7);
+        const drawX = vram.getInt16(sprite + 2);
+        const drawY = vram.getInt16(sprite + 4);
+        const tw = vram_u8[sprite + 6];
+        const th = vram_u8[sprite + 7];
 
         const mask = getMaskBound(maskIndex);
 
@@ -585,17 +590,18 @@ const VConsole = () => {
             const online = [];
             let lleft = WIDTH;
             let lright = 0;
-            for (const i of active) {
-                if (y < i.bottom && y >= i.top) {
+            for (let i = 0; i < active.length; i++) {
+                const el = active[i];
+                if (y < el.bottom && y >= el.top) {
                     online.push({
-                        index: i.index,
-                        left: i.left,
-                        right: i.right,
+                        index: el.index,
+                        left: el.left,
+                        right: el.right,
                         progressX: 0,
                         currentX: 0,
                     });
-                    if (i.left < lleft) lleft = i.left;
-                    if (i.right > lright) lright = i.right;
+                    if (el.left < lleft) lleft = el.left;
+                    if (el.right > lright) lright = el.right;
                 }
             }
 
@@ -606,11 +612,12 @@ const VConsole = () => {
                 }
 
                 let drawn = false;
-                for (const i of online) {
-                    if (x < i.left || x >= i.right) {
+                for (let i = 0; i < online.length; i++) {
+                    const el = online[i];
+                    if (x < el.left || x >= el.right) {
                         continue;
                     }
-                    drawn = drawSprite(x, y, i.index);
+                    drawn = drawSprite(x, y, el.index);
                     if (drawn) {
                         break;
                     }
@@ -631,25 +638,22 @@ const VConsole = () => {
         const vinputs = _vPad.get();
         const kinputs = _kPad.get();
         const inputs = vinputs | kinputs;
-        mem.setUint8(ADR_INPUT, inputs);
+        vram.setUint8(ADR_INPUT, inputs);
 
-        cart?.update(mem);
+        cart?.update(vram);
     }
 
     function draw() {
 
         drawSprites();
 
-    }
+        ctx.putImageData(imageData, 0, 0);
 
-    function getImageData() {
-        return imgData;
     }
 
     return {
         update: update,
         draw: draw,
-        getImageData: getImageData,
     }
 };
 
@@ -689,14 +693,11 @@ const VConsole = () => {
     });
 
     const canvas = /** @type {HTMLCanvasElement} */ (document.getElementById("gd_main"));
-    const ctx = canvas.getContext("2d", { alpha: false });
-    canvas.width = WIDTH;
-    canvas.height = HEIGHT;
 
     const k_targetInterval = 1000 / FPS;
     const k_maxFrame = 1;
 
-    const _vConsole = typeof VConsole !== 'undefined' ? VConsole() : null;
+    const _vConsole = typeof VConsole !== 'undefined' ? VConsole(canvas) : null;
     let _nextGameTick = performance.now();
 
     /**
@@ -724,10 +725,6 @@ const VConsole = () => {
 
         if (count > 0) {
             _vConsole?.draw();
-            const imgData = _vConsole?.getImageData();
-            if (imgData) {
-                ctx?.putImageData(imgData, 0, 0);
-            }
         }
 
         animationFrameId = requestAnimationFrame(mainloop);
