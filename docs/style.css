@@ -138,5 +138,5 @@ body:has(#gd_maximize:checked) {
 }
 
 #gd_main {
-    image-rendering: pixelated;
+    /* image-rendering: pixelated; */
 }

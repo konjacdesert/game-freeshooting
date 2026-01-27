@@ -46,22 +46,35 @@ const VCartridge = () => {
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * (ADR_PALETTE_SEPARATE + 0), 0b1_00000_00000_00000);
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * (ADR_PALETTE_SEPARATE + 1), 0b0_11111_11111_11111);
 
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 0, 0b00000011);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 1, 0b00001100);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 2, 0b00010000);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 3, 0b00100000);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 4, 0b01000000);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 5, 0b01000000);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 6, 0b10000000);
-            mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 7, 0b10000000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 0, 0x00000011);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 1, 0x00001100);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 2, 0x00010000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 3, 0x00100000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 5, 0x01000000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 4, 0x01000000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 6, 0x10000000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x10 + 4 * 7, 0x10000000);
 
+            let head = ADR_CELL_HEAD;
             for (let wh = 0; wh < CW * CH; wh++) {
-                mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * wh, 0x10);// chip index
+                mem.setUint8(head + ADR_CELL_SEEK * wh, 0x10);// chip index
                 const x = wh % CW;
                 const y = (wh / CW) | 0;
                 const flag = ((x % 2) == 1 ? 0b00010000 : 0) | ((y % 2) == 1 ? 0b00100000 : 0) | 1;
-                mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * wh + 1, flag);// palette 1
+                mem.setUint8(head + ADR_CELL_SEEK * wh + 1, flag);// palette 1
             }
+            head += ADR_CELL_SEEK * (CW * CH);
+            mem.setUint8(head, 0x10);
+            mem.setUint8(head + 1, 0b0000_0001);
+            head += ADR_CELL_SEEK;
+            mem.setUint8(head, 0x10);
+            mem.setUint8(head + 1, 0b0001_0001);
+            head += ADR_CELL_SEEK;
+            mem.setUint8(head, 0x10);
+            mem.setUint8(head + 1, 0b0010_0001);
+            head += ADR_CELL_SEEK;
+            mem.setUint8(head, 0x10);
+            mem.setUint8(head + 1, 0b0011_0001);
 
             mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 0, 0); // left
             mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 1, 0); // top
@@ -81,6 +94,15 @@ const VCartridge = () => {
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 6, CW); // cw
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 7, CH); // ch
             mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 8, 0); // cell offset
+
+            for (let i = 2; i < ADR_SPRITE_NUM; i++) {
+                mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 0, 0b0000_0011); // mask_valid
+                mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 2, Math.random() * (WIDTH - 16)); // x
+                mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 4, Math.random() * (HEIGHT + 32) - 16); // y
+                mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 6, 2); // cw
+                mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 7, 2); // ch
+                mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 8, CW * CH); // cell offset
+            }
 
             init = true;
         }
@@ -129,6 +151,16 @@ const VCartridge = () => {
 
         mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 2, (x | 0) - WIDTH);
         mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 4, y | 0);
+
+        for (let i = 2; i < ADR_SPRITE_NUM; i++) {
+            let x = mem.getInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 2);
+            let y = mem.getInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 4);
+            y += x / 32 + 2;
+            if (y > HEIGHT) {
+                y -= HEIGHT + 16;
+            }
+            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * i + 4, y);
+        }
 
     }
 
@@ -403,71 +435,6 @@ const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
     }
 
     /**
-     * @param {number} x
-     * @param {number} y
-     * @param {number} p
-     */
-    function drawPalleteF(x, y, p) {
-        if (p % 16 == 0) {
-            return false;
-        }
-        return drawPallete(x, y, p);
-    }
-
-    /**
-     * チップからパレットを取得してセット
-     * @param {number} index
-     * @param {number} x
-     * @param {number} y
-     * @param {number} p
-     * @param {number} sx
-     * @param {number} sy
-     */
-    function drawChip(sx, sy, index, x, y, p) {
-        const adr = ADR_CHIP_HEAD + index * ADR_CHIP_SEEK + y * 4;
-        const d1 = vram_u8[adr + 0];
-        const d2 = vram_u8[adr + 1];
-        const d3 = vram_u8[adr + 2];
-        const d4 = vram_u8[adr + 3];
-
-        const c1 = (d1 >> (7 - x)) & 0x1;
-        const c2 = (d2 >> (7 - x)) & 0x1;
-        const c3 = (d3 >> (7 - x)) & 0x1;
-        const c4 = (d4 >> (7 - x)) & 0x1;
-
-        const c = (c4 << 3) | (c3 << 2) | (c2 << 1) | (c1 << 0);
-        return drawPalleteF(sx, sy, c + p * ADR_PALETTE_SEPARATE);
-    }
-
-    /**
-     * セルからチップ情報を取得してセット
-     * @param {number} index
-     * @param {number} x
-     * @param {number} y
-     * @param {any} sx
-     * @param {any} sy
-     * @param {boolean} fx
-     * @param {boolean} fy
-     */
-    function drawCell(sx, sy, index, x, y, fx, fy) {
-        const chip = vram_u8[ADR_CELL_HEAD + index * ADR_CELL_SEEK + 0];
-        const flag = vram_u8[ADR_CELL_HEAD + index * ADR_CELL_SEEK + 1];
-        const palette = flag & 0b1111;
-        const flipX = ((flag & 0b00010000) != 0) != fx;
-        const flipY = ((flag & 0b00100000) != 0) != fy;
-        const invalid = (flag & 0b10000000) != 0;
-
-        if (invalid) {
-            return false;
-        }
-
-        const dx = flipX ? 7 - x : x;
-        const dy = flipY ? 7 - y : y;
-
-        return drawChip(sx, sy, chip, dx, dy, palette);
-    }
-
-    /**
      * @param {number} index
      */
     function getMaskBound(index) {
@@ -477,45 +444,6 @@ const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
         const right = vram_u8[mask + 2] * CELL;
         const bottom = vram_u8[mask + 3] * CELL;
         return { left: left, top: top, right: right, bottom: bottom };
-    }
-
-    /**
-     * スプライトからテーブル情報を取得してセット
-     * @param {number} sx
-     * @param {number} sy
-     * @param {number} index
-     */
-    function drawSprite(sx, sy, index) {
-        const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
-        const flags = vram_u8[sprite + 0];
-        const valid = (flags & 0b0001) != 0;
-
-        if (!valid) {
-            return false;
-        }
-
-        const flipX = (flags & 0b0100) != 0;
-        const flipY = (flags & 0b1000) != 0;
-
-        const drawX = vram.getInt16(sprite + 2);
-        const drawY = vram.getInt16(sprite + 4);
-        const tw = vram_u8[sprite + 6];
-        const th = vram_u8[sprite + 7];
-
-        const offset = vram_u8[sprite + 8];
-
-        const lx = sx - drawX;
-        const ly = sy - drawY;
-        const cx = (lx >> 3);
-        const cy = (ly >> 3);
-        const ccx = flipX ? (tw - 1 - cx) : cx;
-        const ccy = flipY ? (th - 1 - cy) : cy;
-
-        const c = offset + ccx + ccy * tw;
-        const dx = lx & 0b111;
-        const dy = ly & 0b111;
-
-        return drawCell(sx, sy, c, dx, dy, flipX, flipY);
     }
 
     /**
@@ -587,39 +515,88 @@ const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                 continue;
             }
 
-            const online = [];
+            const onlinePool = [];
             let lleft = WIDTH;
             let lright = 0;
             for (let i = 0; i < active.length; i++) {
                 const el = active[i];
                 if (y < el.bottom && y >= el.top) {
-                    online.push({
-                        index: el.index,
-                        left: el.left,
-                        right: el.right,
-                        progressX: 0,
-                        currentX: 0,
-                    });
-                    if (el.left < lleft) lleft = el.left;
-                    if (el.right > lright) lright = el.right;
+                    // スプライト情報を事前にキャッシュ
+                    const sprite = ADR_SPRITE_HEAD + el.index * ADR_SPRITE_SEEK;
+                    const flags = vram_u8[sprite + 0];
+                    const valid = (flags & 0b0001) != 0;
+
+                    if (valid) {
+                        const flipX = (flags & 0b0100) != 0;
+                        const flipY = (flags & 0b1000) != 0;
+                        const drawX = vram.getInt16(sprite + 2);
+                        const drawY = vram.getInt16(sprite + 4);
+                        const tw = vram_u8[sprite + 6];
+                        const th = vram_u8[sprite + 7];
+                        const offset = vram.getUint16(sprite + 8);
+                        const ly = y - drawY;
+                        const cy = (ly >> 3);
+                        const dy = ly & 0b111;
+                        const ccy = flipY ? (th - 1 - cy) : cy;
+
+                        onlinePool.push({
+                            left: el.left,
+                            right: el.right,
+                            flipX: flipX,
+                            flipY: flipY,
+                            drawX: drawX,
+                            tw: tw,
+                            offset: offset,
+                            ccy: ccy,
+                            dy: dy
+                        });
+                        if (el.left < lleft) lleft = el.left;
+                        if (el.right > lright) lright = el.right;
+                    }
                 }
             }
 
-            for (let x = 0; x < WIDTH; x++) {
-                if (x >= lright || x < lleft) {
-                    drawPallete(x, y, 0);
-                    continue;
-                }
+            const onlineCnt = onlinePool.length;
 
+            for (let x = 0; x < WIDTH; x++) {
                 let drawn = false;
-                for (let i = 0; i < online.length; i++) {
-                    const el = online[i];
-                    if (x < el.left || x >= el.right) {
-                        continue;
-                    }
-                    drawn = drawSprite(x, y, el.index);
-                    if (drawn) {
-                        break;
+                for (let i = 0; i < onlineCnt; i++) {
+                    const el = onlinePool[i];
+                    if (x >= el.left && x < el.right) {
+                        // スプライト情報はel経由で取得（キャッシュ済み）
+                        const lx = x - el.drawX;
+                        const cx = (lx >> 3);
+                        const ccx = el.flipX ? (el.tw - 1 - cx) : cx;
+
+                        const c = el.offset + ccx + el.ccy * el.tw;
+                        const dx = lx & 0b111;
+                        // console.log(c);
+
+                        // drawCell インライン展開
+                        const chip = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 0];
+                        const flag = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 1];
+                        const palette = flag & 0b1111;
+                        const cellFlipX = ((flag & 0b00010000) != 0) != el.flipX;
+                        const cellFlipY = ((flag & 0b00100000) != 0) != el.flipY;
+                        const invalid = (flag & 0b10000000) != 0;
+
+                        if (!invalid) {
+                            const finalDx = cellFlipX ? 7 - dx : dx;
+                            const finalDy = cellFlipY ? 7 - el.dy : el.dy;
+
+                            // drawChip + drawPalleteF + drawPallete インライン展開
+                            const d = vram_u8[ADR_CHIP_HEAD + chip * ADR_CHIP_SEEK + finalDy * 4 + Math.floor(finalDx / 2)];
+                            const d1 = (finalDx % 2) == 0 ? (d >> 4) & 0xf : (d >> 0) & 0xf;
+
+                            const paletteIndex = d1 + palette * ADR_PALETTE_SEPARATE;
+
+                            if (paletteIndex % 16 != 0) {
+                                const color = vram.getUint16(ADR_PALETTE_HEAD + paletteIndex * 2);
+                                setPixel(x, y, precalc_color[color]);
+                                drawn = true;
+                            }
+                        }
+                        if (drawn) break;
                     }
                 }
                 if (!drawn) {
