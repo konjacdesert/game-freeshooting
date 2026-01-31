@@ -71,6 +71,7 @@ const VCartridge = () => {
     let i = 0;
     let cell = 0x00;
     let adr = 0x0000;
+    let bank = 0;
 
     let pInputs = 0;
 
@@ -84,19 +85,23 @@ const VCartridge = () => {
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * 0, 0b0_00000_00000_00000);
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * 1, 0b0_11111_11111_11111);
 
-            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xe0 + 4 * 0, 0x11000011);
-            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xe0 + 4 * 1, 0x10000001);
-            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xe0 + 4 * 2, 0x00000000);
-            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xe0 + 4 * 3, 0x00000000);
-            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xe0 + 4 * 5, 0x00000000);
-            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xe0 + 4 * 4, 0x00000000);
-            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xe0 + 4 * 6, 0x10000001);
-            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0xe0 + 4 * 7, 0x11000011);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x3e0 + 4 * 0, 0x11000011);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x3e0 + 4 * 1, 0x10000001);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x3e0 + 4 * 2, 0x00000000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x3e0 + 4 * 3, 0x00000000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x3e0 + 4 * 5, 0x00000000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x3e0 + 4 * 4, 0x00000000);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x3e0 + 4 * 6, 0x10000001);
+            mem.setUint32(ADR_CHIP_HEAD + ADR_CHIP_SEEK * 0x3e0 + 4 * 7, 0x11000011);
 
             // バー表示
             mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 0, 0xe0);
             mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 1, 0xe1);
             mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 2, 0xe2);
+            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 3, 0xf0);
+            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 4, 0xf1);
+            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 5, 0xf2);
+            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * 6, 0xf3);
 
             // for (let i = 0; i < CW; i++) {
             //     mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * i + 1, 0b0000_0001);
@@ -128,7 +133,7 @@ const VCartridge = () => {
             mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 3, CH); // bottom
 
             // カーソル
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 0, 0b0000_0011); // mask_valid
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 0, 0b1100_0011); // mask_valid
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 2, 0); // x
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 4, 0); // y
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 6, 1); // cw
@@ -136,7 +141,7 @@ const VCartridge = () => {
             mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 8, 0); // cell offset
 
             // バー
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 0, 0b0000_0011); // mask_valid
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 0, 0b1100_0011); // mask_valid
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 2, 0); // x
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 4, HEIGHT - 8); // y
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 6, CW); // cw
@@ -152,7 +157,7 @@ const VCartridge = () => {
             mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 8, 0x20); // cell offset
 
             // セル編集
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 3 + 0, 0b0000_0011); // mask_valid
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 3 + 0, 0b1100_0011); // mask_valid
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 3 + 2, 0); // x
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 3 + 4, 0); // y
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 3 + 6, 8); // cw
@@ -160,7 +165,7 @@ const VCartridge = () => {
             mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 3 + 8, 0x120); // cell offset
 
             // メモリ編集
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 4 + 0, 0b0000_0011); // mask_valid
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 4 + 0, 0b1100_0011); // mask_valid
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 4 + 2, WIDTH - CELL * 8); // x
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 4 + 4, 0); // y
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 4 + 6, 8); // cw
@@ -264,42 +269,51 @@ const VCartridge = () => {
 
         if (down & PAD_FLAG.Z) {
             do {
-                if (x === 2 && y === 35) {
-                    // ファイル選択ダイアログを表示
-                    const input = document.createElement('input');
-                    input.type = 'file';
-                    input.onchange = (event) => {
-                        const file = event.target.files[0];
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            const result = e.target.result;
-                            if (typeof result === 'string') {
-                                base64ToDataView(result, mem);
-                                console.log("VRAM loaded");
-                            } else if (result instanceof ArrayBuffer) {
-                                const array = new Uint8Array(result);
-                                for (let i = 0; i < array.length && i < mem.byteLength; i++) {
-                                    mem.setUint8(i, array[i]);
+                if (y === 0x23) {
+                    if (x === 1) {
+                        const data = dataViewToBase64(mem, ADR_CELL_HEAD);
+                        const blob = new Blob([data], { type: "text/plain" });
+                        const url = URL.createObjectURL(blob);
+
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = "vram.txt";
+                        a.click();
+
+                        URL.revokeObjectURL(url); // メモリ解放
+                        break;
+                    }
+                    if (x === 2) {
+                        // ファイル選択ダイアログを表示
+                        const input = document.createElement('input');
+                        input.type = 'file';
+                        input.onchange = (event) => {
+                            const file = event.target.files[0];
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                const result = e.target.result;
+                                if (typeof result === 'string') {
+                                    base64ToDataView(result, mem);
+                                    console.log("VRAM loaded");
+                                } else if (result instanceof ArrayBuffer) {
+                                    const array = new Uint8Array(result);
+                                    for (let i = 0; i < array.length && i < mem.byteLength; i++) {
+                                        mem.setUint8(i, array[i]);
+                                    }
                                 }
-                            }
+                            };
+                            reader.readAsText(file);
                         };
-                        reader.readAsText(file);
-                    };
-                    input.click();
-                    break;
-                }
-                if (x === 1 && y === 35) {
-                    const data = dataViewToBase64(mem, ADR_CELL_HEAD);
-                    const blob = new Blob([data], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = "vram.txt";
-                    a.click();
-
-                    URL.revokeObjectURL(url); // メモリ解放
-                    break;
+                        input.click();
+                        break;
+                    }
+                    if (x >= 3 && x <= 6) {
+                        // バンク切り替え
+                        bank = x - 3;
+                        const f = (bank << 6) | 0b11;
+                        mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 0, f);
+                        break;
+                    }
                 }
                 if (x >= 0 && x < 8 && y >= 0 && y < 8) {
                     const seek = (x >> 1) + y * 4;
@@ -308,7 +322,7 @@ const VCartridge = () => {
                     break;
                 }
                 if (x >= 0 && x < 16 && y >= 8 && y < 8 + 16) {
-                    cell = x + (y - 8) * 16;
+                    cell = x + (y - 8) * 16 + bank * 256;
                     redraw = true;
                     break;
                 }
@@ -331,9 +345,33 @@ const VCartridge = () => {
             } while (0);
         } else if (down & PAD_FLAG.X) {
             do {
+                if (y === 0x23) {
+                    if (x >= 3 && x <= 6) {
+                        const from = (i >> 4) & 0b11;
+                        const to = i & 0b11;
+                        for (let idx = 0; idx < 256; idx++) {
+                            for (let s = 0; s < 32; s++) {
+                                const c = mem.getUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * (from * 256 + idx) + s);
+                                mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * (to * 256 + idx) + s, c);
+                            }
+                        }
+                        redraw = true;
+                        break;
+                    }
+                }
                 if (x >= 0 && x < 8 && y >= 0 && y < 8) {
                     const seek = (x >> 1) + y * 4;
                     i = mem.getUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * cell + seek);
+                    redraw = true;
+                    break;
+                }
+                if (x >= 0 && x < 16 && y >= 8 && y < 8 + 16) {
+                    const from = cell;
+                    const to = x + (y - 8) * 16 + bank * 256;
+                    for (let s = 0; s < 32; s++) {
+                        const c = mem.getUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * from + s);
+                        mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * to + s, c);
+                    }
                     redraw = true;
                     break;
                 }
@@ -584,7 +622,7 @@ const ADR_PALETTE_SEPARATE = 16;
 
 const ADR_CHIP_HEAD = ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * ADR_PALETTE_NUM;
 const ADR_CHIP_SEEK = 32;
-const ADR_CHIP_NUM = 256;
+const ADR_CHIP_NUM = 1024;
 
 const ADR_CELL_HEAD = ADR_CHIP_HEAD + ADR_CHIP_SEEK * ADR_CHIP_NUM;
 const ADR_CELL_SEEK = 2;
@@ -592,7 +630,7 @@ const ADR_CELL_NUM = 4096;
 
 const ADR_MASK_HEAD = ADR_CELL_HEAD + ADR_CELL_SEEK * ADR_CELL_NUM;
 const ADR_MASK_SEEK = 4;
-const ADR_MASK_NUM = 16;
+const ADR_MASK_NUM = 4;
 
 const ADR_SPRITE_HEAD = ADR_MASK_HEAD + ADR_MASK_SEEK * ADR_MASK_NUM;
 const ADR_SPRITE_SEEK = 10;
@@ -708,33 +746,73 @@ const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
         return { left: left, top: top, right: right, bottom: bottom };
     }
 
+    /**
+     * @param {number} index
+     */
+    function getSpriteInfo(index) {
+        const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
+        const flags = vram_u8[sprite + 0];
+        const valid = (flags & 0b0001) != 0;
+
+        if (!valid) {
+            return null;
+        }
+
+        const flipX = (flags & 0b0100) != 0;
+        const flipY = (flags & 0b1000) != 0;
+        const maskIndex = (flags >> 4) & 0b11;
+        const bank = (flags >> 6) & 0b11;
+        const drawX = vram.getInt16(sprite + 2);
+        const drawY = vram.getInt16(sprite + 4);
+        const tw = vram_u8[sprite + 6];
+        const th = vram_u8[sprite + 7];
+        const offset = vram.getUint16(sprite + 8);
+
+        const mask = getMaskBound(maskIndex);
+
+        const left = Math.max(0, drawX, mask.left);
+        const top = Math.max(0, drawY, mask.top);
+        const right = Math.min(WIDTH, drawX + tw * CELL, mask.right);
+        const bottom = Math.min(HEIGHT, drawY + th * CELL, mask.bottom);
+
+        return {
+            flipX: flipX,
+            flipY: flipY,
+            // maskIndex: maskIndex,
+            bank: bank,
+            drawX: drawX,
+            drawY: drawY,
+            tw: tw,
+            th: th,
+            offset: offset,
+            left: left,
+            top: top,
+            right: right,
+            bottom: bottom,
+        };
+    }
+
     function drawSprites() {
         let cnt = 0;
         const s = performance.now();
 
-        const active = [];
+        const sprites = [];
         let top = HEIGHT;
         let bottom = 0;
         let left = WIDTH;
         let right = 0;
-
         for (let i = 0; i < ADR_SPRITE_NUM; i++) {
-            const bound = getSpriteBound(i);
-            if (bound.left >= bound.right || bound.top >= bound.bottom) {
-                continue;
+            const info = getSpriteInfo(i);
+            if (info != null) {
+                sprites.push({
+                    index: i,
+                    ...info
+                });
+                if (info.top < top) top = info.top;
+                if (info.bottom > bottom) bottom = info.bottom;
+                if (info.left < left) left = info.left;
+                if (info.right > right) right = info.right;
             }
-            active.push({
-                index: i,
-                top: bound.top,
-                bottom: bound.bottom,
-                left: bound.left,
-                right: bound.right,
-            });
-            cnt++;
-            if (bound.top < top) top = bound.top;
-            if (bound.bottom > bottom) bottom = bound.bottom;
-            if (bound.left < left) left = bound.left;
-            if (bound.right > right) right = bound.right;
         }
 
         for (let y = 0; y < HEIGHT; y++) {
@@ -744,78 +822,71 @@ const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                 }
                 continue;
             }
-
-            const onlinePool = [];
-            let lleft = WIDTH;
-            let lright = 0;
-            for (let i = 0; i < active.length; i++) {
-                const el = active[i];
+            const online = [];
+            const cache = [];
+            for (let i = 0; i < sprites.length; i++) {
+                const el = sprites[i];
                 if (y < el.bottom && y >= el.top) {
-                    // スプライト情報を事前にキャッシュ
-                    const sprite = ADR_SPRITE_HEAD + el.index * ADR_SPRITE_SEEK;
-                    const flags = vram_u8[sprite + 0];
-                    const valid = (flags & 0b0001) != 0;
-
-                    if (valid) {
-                        const flipX = (flags & 0b0100) != 0;
-                        const flipY = (flags & 0b1000) != 0;
-                        const drawX = vram.getInt16(sprite + 2);
-                        const drawY = vram.getInt16(sprite + 4);
-                        const tw = vram_u8[sprite + 6];
-                        const th = vram_u8[sprite + 7];
-                        const offset = vram.getUint16(sprite + 8);
-                        const ly = y - drawY;
-                        const cy = (ly >> 3);
-                        const dy = ly & 0b111;
-                        const ccy = flipY ? (th - 1 - cy) : cy;
-
-                        onlinePool.push({
-                            left: el.left,
-                            right: el.right,
-                            flipX: flipX,
-                            flipY: flipY,
-                            drawX: drawX,
-                            tw: tw,
-                            offset: offset,
-                            ccy: ccy,
-                            dy: dy
-                        });
-                        if (el.left < lleft) lleft = el.left;
-                        if (el.right > lright) lright = el.right;
-                    }
+                    const ly = y - el.drawY;
+                    const cy = (ly >> 3);
+                    const dy = ly & 0b111;
+                    const ccy = el.flipY ? (el.th - 1 - cy) : cy;
+                    online.push({
+                        ...el,
+                        dy: dy,
+                        ccy: ccy
+                    });
+                    cache.push({
+                        ci: -1,
+                        cell: -1,
+                        palette: -1,
+                        cellFlipX: false,
+                        cellFlipY: false,
+                        invalid: true,
+                    });
                 }
             }
 
-            const onlineCnt = onlinePool.length;
-
             for (let x = 0; x < WIDTH; x++) {
                 let drawn = false;
-                for (let i = 0; i < onlineCnt; i++) {
-                    const el = onlinePool[i];
+                for (let i = 0; i < online.length; i++) {
+                    const el = online[i];
                     if (x >= el.left && x < el.right) {
-                        // スプライト情報はel経由で取得（キャッシュ済み）
                         const lx = x - el.drawX;
                         const cx = (lx >> 3);
+                        const dx = lx & 0b111;
                         const ccx = el.flipX ? (el.tw - 1 - cx) : cx;
 
                         const c = el.offset + ccx + el.ccy * el.tw;
-                        const dx = lx & 0b111;
-                        // console.log(c);
 
-                        // drawCell インライン展開
-                        const chip = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 0];
-                        const flag = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 1];
-                        const palette = flag & 0b1111;
-                        const cellFlipX = ((flag & 0b00010000) != 0) != el.flipX;
-                        const cellFlipY = ((flag & 0b00100000) != 0) != el.flipY;
-                        const invalid = (flag & 0b10000000) != 0;
+                        if (cache[i].ci !== c) {
+                            const chip = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 0];
+                            const flag = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 1];
+                            const palette = flag & 0b1111;
+                            const cellFlipX = ((flag & 0b00010000) != 0) != el.flipX;
+                            const cellFlipY = ((flag & 0b00100000) != 0) != el.flipY;
+                            const invalid = (flag & 0b10000000) != 0;
+
+                            cache[i].ci = c;
+                            cache[i].cell = chip;
+                            cache[i].palette = palette;
+                            cache[i].cellFlipX = cellFlipX;
+                            cache[i].cellFlipY = cellFlipY;
+                            cache[i].invalid = invalid;
+                        }
+
+                        const cdata = cache[i];
+                        const chip = cdata.cell;
+                        const palette = cdata.palette;
+                        const cellFlipX = cdata.cellFlipX;
+                        const cellFlipY = cdata.cellFlipY;
+                        const invalid = cdata.invalid;
 
                         if (!invalid) {
                             const finalDx = cellFlipX ? 7 - dx : dx;
                             const finalDy = cellFlipY ? 7 - el.dy : el.dy;
 
-                            // drawChip + drawPalleteF + drawPallete インライン展開
-                            const d = vram_u8[ADR_CHIP_HEAD + chip * ADR_CHIP_SEEK + finalDy * 4 + Math.floor(finalDx / 2)];
+                            const d = vram_u8[ADR_CHIP_HEAD + (chip + el.bank * 256) * ADR_CHIP_SEEK + finalDy * 4 + Math.floor(finalDx / 2)];
                             const d1 = (finalDx % 2) == 0 ? (d >> 4) & 0xf : (d >> 0) & 0xf;
 
                             const paletteIndex = d1 + palette * ADR_PALETTE_SEPARATE;
@@ -834,6 +905,7 @@ const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                 }
             }
         }
+
         DebugTextArea.log[0] = `pf:${(performance.now() - s).toFixed(5)}`;
         DebugTextArea.log[1] = `ct:${cnt}`;
         DebugTextArea.log[2] = `t:${top} b:${bottom} l:${left} r:${right}`;
