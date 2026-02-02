@@ -14,35 +14,6 @@ const PAD_FLAG = {
     Start: 1 << 6,
 }
 
-
-/**
- * DataViewの内容をbase64文字列に変換する
- * @param {DataView} dataView
- * @returns {string}
- * @param {number} [size]
- */
-function dataViewToBase64(dataView, size) {
-    const uint8Array = new Uint8Array(dataView.buffer, dataView.byteOffset, size);
-    let binary = '';
-    for (let i = 0; i < uint8Array.length; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
-    }
-    return btoa(binary);
-}
-
-/**
- * base64文字列からDataViewに復元する（既存DataViewに書き込み）
- * @param {string} base64
- * @param {DataView} targetDataView 書き込み先DataView
- */
-function base64ToDataView(base64, targetDataView) {
-    const binary = atob(base64);
-    const len = binary.length;
-    for (let i = 0; i < len && i < targetDataView.byteLength; i++) {
-        targetDataView.setUint8(i, binary.charCodeAt(i));
-    }
-}
-
 const DebugTextArea = (() => {
     const textarea = /** @type {HTMLPreElement} */ (document.getElementById("gd_debugtext"));
 
@@ -74,11 +45,43 @@ const VCartridge = () => {
 
     let pInputs = 0;
 
+    // ファイルマネージャー
+    const fileManager = {
+        /** @type {Uint8Array | null} */
+        pendingData: null,
+
+        /**
+         * @param {Uint8Array} data
+         */
+        setData(data) {
+            this.pendingData = data;
+        },
+
+        /**
+         * @param {DataView} mem
+         */
+        applyIfReady(mem) {
+            if (this.pendingData) {
+                const dsc = new Uint8Array(mem.buffer, 0, this.pendingData.byteLength);
+                dsc.set(this.pendingData);
+                console.log("VRAM set");
+                this.pendingData = null;
+                return true;
+            }
+            return false;
+        }
+    };
+
     /**
      * @param {DataView} mem
      */
     function update(mem) {
         let redraw = false;
+
+        // ファイルマネージャーから保留中のデータを適用
+        if (fileManager.applyIfReady(mem)) {
+            redraw = true;
+        }
 
         if (!init) {
             mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * 0, 0b0_00000_00000_00000);
@@ -266,30 +269,40 @@ const VCartridge = () => {
             do {
                 if (x === 2 && y === 35) {
                     // ファイル選択ダイアログを表示
-                    const input = document.createElement('input');
+                    const input /** @type {HTMLInputElement} */ = document.createElement('input');
                     input.type = 'file';
                     input.onchange = (event) => {
-                        const file = event.target.files[0];
-                        const reader = new FileReader();
-                        reader.onload = (e) => {
-                            const result = e.target.result;
-                            if (typeof result === 'string') {
-                                base64ToDataView(result, mem);
-                                console.log("VRAM loaded");
-                            } else if (result instanceof ArrayBuffer) {
-                                const array = new Uint8Array(result);
-                                for (let i = 0; i < array.length && i < mem.byteLength; i++) {
-                                    mem.setUint8(i, array[i]);
+                        if (!event.target) return;
+                        const target = /** @type {HTMLInputElement} */ (event.target);
+                        if (!target.files || target.files.length === 0) return;
+                        const file = target.files[0];
+                        const loadFile = new Promise((resolve, reject) => {
+                            const reader = new FileReader();
+                            reader.onload = (e) => {
+                                if (!e.target) { reject(new Error("File read error")); return; }
+                                const result = e.target.result;
+                                if (typeof result === 'string') {
+                                    const bin = Uint8Array.fromBase64(result);
+                                    resolve(bin);
+                                } else {
+                                    reject(new Error("Invalid file format"));
                                 }
-                            }
-                        };
-                        reader.readAsText(file);
+                            };
+                            reader.readAsText(file);
+                        });
+                        loadFile.then(bin => {
+                            fileManager.setData(bin);
+                            console.log("VRAM loaded");
+                        }).catch(error => {
+                            console.error("Failed to load VRAM:", error);
+                        });
                     };
                     input.click();
                     break;
                 }
                 if (x === 1 && y === 35) {
-                    const data = dataViewToBase64(mem, ADR_CELL_HEAD);
+                    const src = new Uint8Array(mem.buffer, 0, ADR_CELL_HEAD);
+                    const data = src.toBase64();
                     const blob = new Blob([data], { type: "text/plain" });
                     const url = URL.createObjectURL(blob);
 
