@@ -31,6 +31,47 @@ const DebugTextArea = (() => {
     }
 })();
 
+// ファイルマネージャー
+const FileManager = () => {
+
+    /** @type {{ [key: string]: Uint8Array | null }} */
+    const pendingData = {};
+
+    /**
+     * @param {string | number} key
+     * @param {File} file
+     */
+    function requestLoad(key, file) {
+        delete pendingData[key];
+        const loadFile = new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                if (!e.target) { reject(new Error("File read error")); return; }
+                const result = e.target.result;
+                if (typeof result === 'string') {
+                    /**@ts-ignore */
+                    const bin = Uint8Array.fromBase64(result);
+                    resolve(bin);
+                } else {
+                    reject(new Error("Invalid file format"));
+                }
+            };
+            reader.readAsText(file);
+        });
+        loadFile.then(bin => {
+            pendingData[key] = bin;
+            console.log("VRAM loaded");
+        }).catch(error => {
+            console.error("Failed to load VRAM:", error);
+        });
+    }
+
+    return {
+        requestLoad: requestLoad,
+        pendingData: pendingData,
+    }
+};
+
 const VCartridge = () => {
     let init = false;
 
@@ -47,31 +88,8 @@ const VCartridge = () => {
     let pInputs = 0;
 
     // ファイルマネージャー
-    const fileManager = {
-        /** @type {Uint8Array | null} */
-        pendingData: null,
-
-        /**
-         * @param {Uint8Array} data
-         */
-        setData(data) {
-            this.pendingData = data;
-        },
-
-        /**
-         * @param {DataView} mem
-         */
-        applyIfReady(mem) {
-            if (this.pendingData) {
-                const dsc = new Uint8Array(mem.buffer, 0, this.pendingData.byteLength);
-                dsc.set(this.pendingData);
-                console.log("VRAM set");
-                this.pendingData = null;
-                return true;
-            }
-            return false;
-        }
-    };
+    const fileManager = FileManager();
+    const fileName = "vram.txt";
 
     /**
      * @param {DataView} mem
@@ -80,8 +98,15 @@ const VCartridge = () => {
         let redraw = false;
 
         // ファイルマネージャーから保留中のデータを適用
-        if (fileManager.applyIfReady(mem)) {
-            redraw = true;
+        if (fileName in fileManager.pendingData) {
+            const data = fileManager.pendingData[fileName];
+            if (data) {
+                const dsc = new Uint8Array(mem.buffer, 0, data.byteLength);
+                dsc.set(data);
+                console.log("VRAM set");
+                delete fileManager.pendingData[fileName];
+                redraw = true;
+            }
         }
 
         if (!init) {
@@ -272,54 +297,36 @@ const VCartridge = () => {
 
         if (down & PAD_FLAG.Z) {
             do {
-                if (x === 2 && y === 35) {
-                    // ファイル選択ダイアログを表示
-                    const input /** @type {HTMLInputElement} */ = document.createElement('input');
-                    input.type = 'file';
-                    input.onchange = (event) => {
-                        if (!event.target) return;
-                        const target = /** @type {HTMLInputElement} */ (event.target);
-                        if (!target.files || target.files.length === 0) return;
-                        const file = target.files[0];
-                        const loadFile = new Promise((resolve, reject) => {
-                            const reader = new FileReader();
-                            reader.onload = (e) => {
-                                if (!e.target) { reject(new Error("File read error")); return; }
-                                const result = e.target.result;
-                                if (typeof result === 'string') {
-                                    const bin = Uint8Array.fromBase64(result);
-                                    resolve(bin);
-                                } else {
-                                    reject(new Error("Invalid file format"));
-                                }
-                            };
-                            reader.readAsText(file);
-                        });
-                        loadFile.then(bin => {
-                            fileManager.setData(bin);
-                            console.log("VRAM loaded");
-                        }).catch(error => {
-                            console.error("Failed to load VRAM:", error);
-                        });
-                    };
-                    input.click();
-                    break;
-                }
-                if (x === 1 && y === 35) {
-                    const src = new Uint8Array(mem.buffer, 0, ADR_CELL_HEAD);
-                    const data = src.toBase64();
-                    const blob = new Blob([data], { type: "text/plain" });
-                    const url = URL.createObjectURL(blob);
-
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = "vram.txt";
-                    a.click();
-
-                    URL.revokeObjectURL(url); // メモリ解放
-                    break;
-                }
                 if (y === 0x23) {
+                    if (x === 1) {
+                        const src = new Uint8Array(mem.buffer, 0, ADR_CELL_HEAD);
+                        /**@ts-ignore */
+                        const data = src.toBase64();
+                        const blob = new Blob([data], { type: "text/plain" });
+                        const url = URL.createObjectURL(blob);
+
+                        const a = document.createElement('a');
+                        a.href = url;
+                        a.download = fileName;
+                        a.click();
+
+                        URL.revokeObjectURL(url); // メモリ解放
+                        break;
+                    }
+                    if (x === 2) {
+                        // ファイル選択ダイアログを表示
+                        const input /** @type {HTMLInputElement} */ = document.createElement('input');
+                        input.type = 'file';
+                        input.onchange = (event) => {
+                            if (!event.target) return;
+                            const target = /** @type {HTMLInputElement} */ (event.target);
+                            if (!target.files || target.files.length === 0) return;
+                            const file = target.files[0];
+                            fileManager.requestLoad(fileName, file);
+                        };
+                        input.click();
+                        break;
+                    }
                     if (x >= 3 && x <= 6) {
                         // バンク切り替え
                         bank = x - 3;
@@ -413,7 +420,7 @@ const VCartridge = () => {
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 2, x * CELL);
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 4, y * CELL);
 
-            const drawtwo = (start, i) => {
+            const drawtwo = (/** @type {number} */ start, /** @type {number} */ i) => {
                 const hi = i >> 4;
                 const low = i & 0xf;
                 mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * start, 0xf0 + hi);
@@ -672,7 +679,7 @@ const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
     const vram_u8 = new Uint8Array(vram_buf);
     const cart = typeof VCartridge !== 'undefined' ? VCartridge() : null;
 
-    const /** @type {CanvasRenderingContext2D} */ ctx = canvas.getContext("2d", { alpha: false });
+    const ctx = canvas.getContext("2d", { alpha: false });
     const imageData = ctx.createImageData(canvas.width, canvas.height);
     const frame_u32 = new Uint32Array(imageData.data.buffer);
     frame_u32.fill(0xff000000);
