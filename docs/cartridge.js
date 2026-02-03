@@ -311,11 +311,13 @@ export const VCartridge = () => {
                     break;
                 }
                 if (x >= 0 && x < 16 && y >= 8 && y < 8 + 16) {
-                    const from = cell;
-                    const to = x + (y - 8) * 16 + bank * 256;
+                    const from = x + (y - 8) * 16 + bank * 256;
+                    const to = cell;
                     for (let s = 0; s < 32; s++) {
                         const c = mem.getUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * from + s);
-                        mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * to + s, c);
+                        const t = mem.getUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * to + s);
+                        const r = c | t;
+                        mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * to + s, r);
                     }
                     redraw = true;
                     break;
