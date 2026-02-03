@@ -301,7 +301,7 @@ const VCartridge = () => {
                     if (x === 1) {
                         const src = new Uint8Array(mem.buffer, 0, ADR_CELL_HEAD);
                         /**@ts-ignore */
-                        const data = src.toBase64();
+                        const data = src.toBase64().replace(/(.{76})/g, '$1\n');
                         const blob = new Blob([data], { type: "text/plain" });
                         const url = URL.createObjectURL(blob);
 
