@@ -97,36 +97,6 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
     /**
      * @param {number} index
      */
-    function getSpriteBound(index) {
-        const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
-        const flags = vram_u8[sprite + 0];
-        const valid = (flags & 0b0001) != 0;
-
-        if (!valid) {
-            return { left: 0, top: 0, right: 0, bottom: 0 };
-        }
-
-        // const mode = (flags & 0b0010) != 0;
-        const maskIndex = (flags >> 4) & 0b1111;
-
-        const drawX = vram.getInt16(sprite + 2);
-        const drawY = vram.getInt16(sprite + 4);
-        const tw = vram_u8[sprite + 6];
-        const th = vram_u8[sprite + 7];
-
-        const mask = getMaskBound(maskIndex);
-
-        const left = Math.max(0, drawX, mask.left);
-        const top = Math.max(0, drawY, mask.top);
-        const right = Math.min(WIDTH, drawX + tw * CELL, mask.right);
-        const bottom = Math.min(HEIGHT, drawY + th * CELL, mask.bottom);
-
-        return { left: left, top: top, right: right, bottom: bottom };
-    }
-
-    /**
-     * @param {number} index
-     */
     function getSpriteInfo(index) {
         const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
         const flags = vram_u8[sprite + 0];
@@ -140,6 +110,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
         const flipY = (flags & 0b1000) != 0;
         const maskIndex = (flags >> 4) & 0b11;
         const bank = (flags >> 6) & 0b11;
+        const palxor = vram_u8[sprite + 1] & 0b1111;
         const drawX = vram.getInt16(sprite + 2);
         const drawY = vram.getInt16(sprite + 4);
         const tw = vram_u8[sprite + 6];
@@ -161,6 +132,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
             drawY: drawY,
             tw: tw,
             th: th,
+            palxor: palxor,
             offset: offset,
             left: left,
             top: top,
@@ -239,7 +211,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                         if (cache[i].ci !== c) {
                             const chip = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 0];
                             const flag = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 1];
-                            const palette = flag & 0b1111;
+                            const palette = (flag & 0b1111) ^ el.palxor;
                             const cellFlipX = ((flag & 0b00010000) != 0) != el.flipX;
                             const cellFlipY = ((flag & 0b00100000) != 0) != el.flipY;
                             const invalid = (flag & 0b10000000) != 0;
@@ -250,6 +222,8 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                             cache[i].cellFlipX = cellFlipX;
                             cache[i].cellFlipY = cellFlipY;
                             cache[i].invalid = invalid;
+                        } else {
+                            cnt++;
                         }
 
                         const cdata = cache[i];
@@ -264,17 +238,17 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                             const finalDy = cellFlipY ? 7 - el.dy : el.dy;
 
                             const d = vram_u8[ADR_CHIP_HEAD + (chip + el.bank * 256) * ADR_CHIP_SEEK + finalDy * 4 + Math.floor(finalDx / 2)];
-                            const d1 = (finalDx % 2) == 0 ? (d >> 4) & 0xf : (d >> 0) & 0xf;
+                            const d1 = (finalDx % 2) === 0 ? (d >> 4) & 0xf : (d >> 0) & 0xf;
 
                             const paletteIndex = d1 + palette * ADR_PALETTE_SEPARATE;
 
-                            if (paletteIndex % 16 != 0) {
+                            if (paletteIndex % 16 !== 0) {
                                 const color = vram.getUint16(ADR_PALETTE_HEAD + paletteIndex * 2) & 0x7fff;
                                 setPixel(x, y, precalc_color[color]);
                                 drawn = true;
+                                break;
                             }
                         }
-                        if (drawn) break;
                     }
                 }
                 if (!drawn) {
