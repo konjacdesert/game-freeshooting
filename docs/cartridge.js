@@ -316,7 +316,7 @@ export const VCartridge = () => {
                     for (let s = 0; s < 32; s++) {
                         const c = mem.getUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * from + s);
                         const t = mem.getUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * to + s);
-                        const r = c | t;
+                        const r = c ^ t;
                         mem.setUint8(ADR_CHIP_HEAD + ADR_CHIP_SEEK * to + s, r);
                     }
                     redraw = true;
