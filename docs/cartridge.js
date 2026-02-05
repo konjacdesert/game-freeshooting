@@ -31,7 +31,8 @@ export const VCartridge = () => {
 
     // ファイルマネージャー
     const fileManager = FileManager();
-    const fileName = "vram.txt";
+    const vramtxt = "vram.txt";
+    const impimg = "chip.png";
 
     /**
      * @param {DataView} mem
@@ -40,13 +41,23 @@ export const VCartridge = () => {
         let redraw = false;
 
         // ファイルマネージャーから保留中のデータを適用
-        if (fileName in fileManager.pendingData) {
-            const data = fileManager.pendingData[fileName];
+        if (vramtxt in fileManager.pendingData) {
+            const data = fileManager.pendingData[vramtxt];
             if (data) {
                 const dsc = new Uint8Array(mem.buffer, 0, data.byteLength);
                 dsc.set(data);
                 console.log("VRAM set");
-                delete fileManager.pendingData[fileName];
+                delete fileManager.pendingData[vramtxt];
+                redraw = true;
+            }
+        }
+        if (impimg in fileManager.pendingData) {
+            const data = fileManager.pendingData[impimg];
+            if (data) {
+                const dsc = new Uint8Array(mem.buffer, ADR_CHIP_HEAD, data.byteLength);
+                dsc.set(data);
+                console.log("CELL set");
+                delete fileManager.pendingData[impimg];
                 redraw = true;
             }
         }
@@ -232,7 +243,7 @@ export const VCartridge = () => {
 
                         const a = document.createElement('a');
                         a.href = url;
-                        a.download = fileName;
+                        a.download = vramtxt;
                         a.click();
 
                         URL.revokeObjectURL(url); // メモリ解放
@@ -247,7 +258,7 @@ export const VCartridge = () => {
                             const target = /** @type {HTMLInputElement} */ (event.target);
                             if (!target.files || target.files.length === 0) return;
                             const file = target.files[0];
-                            fileManager.requestLoad(fileName, file);
+                            fileManager.requestLoadText(vramtxt, file);
                         };
                         input.click();
                         break;
@@ -259,6 +270,20 @@ export const VCartridge = () => {
                         mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 0, f);
                         break;
                     }
+                }
+                if (y === 0x22 && x === 2) {
+                    // ファイル選択ダイアログを表示
+                    const input /** @type {HTMLInputElement} */ = document.createElement('input');
+                    input.type = 'file';
+                    input.onchange = (event) => {
+                        if (!event.target) return;
+                        const target = /** @type {HTMLInputElement} */ (event.target);
+                        if (!target.files || target.files.length === 0) return;
+                        const file = target.files[0];
+                        fileManager.requestLoadImage(impimg, file);
+                    };
+                    input.click();
+                    break;
                 }
                 if (x >= 0 && x < 8 && y >= 0 && y < 8) {
                     const seek = (x >> 1) + y * 4;

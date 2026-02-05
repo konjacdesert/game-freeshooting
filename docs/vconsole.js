@@ -243,7 +243,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                             const paletteIndex = d1 + palette * ADR_PALETTE_SEPARATE;
 
                             if (paletteIndex % 16 !== 0) {
-                                const color = vram.getUint16(ADR_PALETTE_HEAD + paletteIndex * 2) & 0x7fff;
+                                const color = vram.getUint16(ADR_PALETTE_HEAD + paletteIndex * ADR_PALETTE_SEEK) & 0x7fff;
                                 setPixel(x, y, precalc_color[color]);
                                 drawn = true;
                                 break;
