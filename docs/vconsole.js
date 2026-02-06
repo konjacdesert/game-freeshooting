@@ -2,6 +2,7 @@ import { DebugTextArea } from "./debug.js";
 import { CELL, HEIGHT, WIDTH } from "./constants.js";
 import {
     ADR_CELL_HEAD,
+    ADR_CELL_NUM,
     ADR_CELL_SEEK,
     ADR_CHIP_HEAD,
     ADR_CHIP_SEEK,
@@ -109,8 +110,9 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
         const flipX = (flags & 0b0100) != 0;
         const flipY = (flags & 0b1000) != 0;
         const maskIndex = (flags >> 4) & 0b11;
-        const bank = (flags >> 6) & 0b11;
-        const palxor = vram_u8[sprite + 1] & 0b1111;
+        const option = vram_u8[sprite + 1];
+        const palxor = option & 0b1111;
+        const bank = (option >> 4) & 0b11;
         const drawX = vram.getInt16(sprite + 2);
         const drawY = vram.getInt16(sprite + 4);
         const tw = vram_u8[sprite + 6];
