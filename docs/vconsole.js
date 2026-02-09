@@ -110,8 +110,8 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
         const page = (option >> 4) & 0b1111;
         const drawX = vram.getInt16(sprite + 2);
         const drawY = vram.getInt16(sprite + 4);
-        const tw = vram_u8[sprite + 6];
-        const th = vram_u8[sprite + 7];
+        const tw = dmode ? 1 : vram_u8[sprite + 6];
+        const th = dmode ? 1 : vram_u8[sprite + 7];
         const tadr = dmode ? sprite + 8 : vram.getUint16(sprite + 8);
 
         const mask = getMaskBound(maskIndex);
