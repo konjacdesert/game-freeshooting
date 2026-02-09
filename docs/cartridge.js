@@ -1,15 +1,15 @@
 import { predata } from "./predata.js";
 import { CELL, CH, CW, HEIGHT, PAD_FLAG, WIDTH } from "./constants.js";
 import {
-    ADR_CELL_HEAD,
-    ADR_CELL_NUM,
-    ADR_CELL_SEEK,
-    ADR_CHIP_HEAD,
+    ADR_TABLE_SEEK,
     ADR_INPUT,
     ADR_MASK_HEAD,
     ADR_MASK_SEEK,
     ADR_SPRITE_HEAD,
     ADR_SPRITE_SEEK,
+    ADR_CELL_SEEK,
+    ADR_PALETTE_HEAD,
+    ADR_PALETTE_SEEK,
 } from "./memoryMap.js";
 import { FileManager } from "./fileManager.js";
 
@@ -29,7 +29,12 @@ export const VCartridge = () => {
     const vramtxt = "vram.txt";
     const impimg = "chip.png";
 
-    const ADR_CELL_SP1 = ADR_CELL_NUM - 0x100;
+    const ADR_CELL_PAGE0 = 0x0000;// 1ページは32*256バイト
+    const ADR_CELL_PAGE1 = 0x2000;
+    const ADR_CELL_PAGE2 = 0x4000;
+    const ADR_CELL_PAGE3 = 0x6000;
+    const ADR_TABLE_BG0 = 0x8000;
+    const ADR_TABLE_BG1 = 0x8800;
 
     /**
      * @param {DataView} mem
@@ -38,13 +43,19 @@ export const VCartridge = () => {
         let redraw = false;
 
         if (!init) {
+            // カラーとセル
             {
-                const dsc = new Uint8Array(mem.buffer, 0, predata.byteLength);
-                dsc.set(predata);
+                // const dsc = new Uint8Array(mem.buffer, 0, predata.byteLength);
+                // dsc.set(predata);
             }
 
-            // カーソル用セル
-            mem.setUint8(ADR_CELL_HEAD + ADR_CELL_SEEK * ADR_CELL_SP1, 0xe0);
+            // カラー
+            for (let i = 0; i < 256; i++) {
+                mem.setUint16(ADR_PALETTE_HEAD + ADR_PALETTE_SEEK * i, Math.random() * 0x7fff);
+            }
+
+            // セル
+            mem.setUint32(ADR_CELL_PAGE3 + ADR_CELL_SEEK * 0xe0 + 0, 0xff0000ff);
 
             // マスク
             mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 0, 0); // left
@@ -52,14 +63,14 @@ export const VCartridge = () => {
             mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 2, CW); // right
             mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 3, CH); // bottom
 
-            // カーソル
+            // カーソルスプライト
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 0, 0b0000_00_1_1); // mask_flip_mode_valid
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 1, 0b0011_0011); // chip_palette
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 1, 0b0011_0011); // page_palette
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 2, 0); // x
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 4, 0); // y
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 6, 1); // cw
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 7, 1); // ch
-            mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 8, ADR_CELL_SP1); // cell offset
+            mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 8, 0xe000); // 直接セルモード
 
             init = true;
             redraw = true;
@@ -79,7 +90,7 @@ export const VCartridge = () => {
         if (impimg in fileManager.pendingData) {
             const data = fileManager.pendingData[impimg];
             if (data) {
-                const dsc = new Uint8Array(mem.buffer, ADR_CHIP_HEAD, data.byteLength);
+                const dsc = new Uint8Array(mem.buffer, ADR_CELL_PAGE3, data.byteLength);
                 dsc.set(data);
                 console.log("CELL set");
                 delete fileManager.pendingData[impimg];

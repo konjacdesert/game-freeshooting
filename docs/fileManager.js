@@ -1,5 +1,5 @@
 import { CELL } from "./constants.js";
-import { ADR_CHIP_SEEK } from "./memoryMap.js";
+import { ADR_CELL_SEEK } from "./memoryMap.js";
 
 // ファイルマネージャー
 export const FileManager = () => {
@@ -49,10 +49,10 @@ export const FileManager = () => {
                 }
                 ctx.drawImage(img, 0, 0);
                 const imageData = ctx.getImageData(0, 0, w, h);
-                const data = new Uint8Array(ADR_CHIP_SEEK * 256);
+                const data = new Uint8Array(ADR_CELL_SEEK * 256);
                 for (let i = 0; i < data.length; i++) {
-                    const x = (((i >> 5) % 16) << 3) + (((i % ADR_CHIP_SEEK) % 4) << 1);
-                    const y = ((i >> 9) << 3) + ((i % ADR_CHIP_SEEK) >> 2);
+                    const x = (((i >> 5) % 16) << 3) + (((i % ADR_CELL_SEEK) % 4) << 1);
+                    const y = ((i >> 9) << 3) + ((i % ADR_CELL_SEEK) >> 2);
                     if (x >= w || y >= h) continue;
                     const pIndex = y * w + x;
                     const hd = imageData.data[pIndex * 4] >> 4;

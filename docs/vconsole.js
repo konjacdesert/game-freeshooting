@@ -1,17 +1,13 @@
 import { DebugTextArea } from "./debug.js";
 import { CELL, HEIGHT, WIDTH } from "./constants.js";
 import {
-    ADR_CELL_HEAD,
-    ADR_CELL_NUM,
+    ADR_TABLE_SEEK,
     ADR_CELL_SEEK,
-    ADR_CHIP_HEAD,
-    ADR_CHIP_SEEK,
     ADR_INPUT,
     ADR_MASK_HEAD,
     ADR_MASK_SEEK,
     ADR_PALETTE_HEAD,
     ADR_PALETTE_SEEK,
-    ADR_PALETTE_SEPARATE,
     ADR_SPRITE_HEAD,
     ADR_SPRITE_NUM,
     ADR_SPRITE_SEEK,
@@ -29,8 +25,6 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
     const _vPad = VPad();
     const _kPad = KPad();
     console.log("ADR_PALETTE_HEAD:", ADR_PALETTE_HEAD.toString(16));
-    console.log("ADR_CHIP_HEAD:", ADR_CHIP_HEAD.toString(16));
-    console.log("ADR_CELL_HEAD:", ADR_CELL_HEAD.toString(16));
     console.log("ADR_MASK_HEAD:", ADR_MASK_HEAD.toString(16));
     console.log("ADR_SPRITE_HEAD:", ADR_SPRITE_HEAD.toString(16));
     console.log("ADR_WORK_HEAD:", ADR_WORK_HEAD.toString(16));
@@ -107,17 +101,18 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
             return null;
         }
 
+        const dmode = (flags & 0b0010) != 0;
         const flipX = (flags & 0b0100) != 0;
         const flipY = (flags & 0b1000) != 0;
         const maskIndex = (flags >> 4) & 0b11;
         const option = vram_u8[sprite + 1];
         const palxor = option & 0b1111;
-        const bank = (option >> 4) & 0b11;
+        const page = (option >> 4) & 0b1111;
         const drawX = vram.getInt16(sprite + 2);
         const drawY = vram.getInt16(sprite + 4);
         const tw = vram_u8[sprite + 6];
         const th = vram_u8[sprite + 7];
-        const offset = vram.getUint16(sprite + 8);
+        const tadr = dmode ? sprite + 8 : vram.getUint16(sprite + 8);
 
         const mask = getMaskBound(maskIndex);
 
@@ -129,13 +124,13 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
         return {
             flipX: flipX,
             flipY: flipY,
-            bank: bank,
+            page: page,// 0-15 セル参照が256ずつずれる
             drawX: drawX,
             drawY: drawY,
             tw: tw,
             th: th,
             palxor: palxor,
-            offset: offset,
+            tadr: tadr,// テーブルアドレス 
             left: left,
             top: top,
             right: right,
@@ -208,18 +203,18 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                         const dx = lx & 0b111;
                         const ccx = el.flipX ? (el.tw - 1 - cx) : cx;
 
-                        const c = el.offset + ccx + el.ccy * el.tw;
+                        const c = el.tadr + (ccx + el.ccy * el.tw) * ADR_TABLE_SEEK;
 
                         if (cache[i].ci !== c) {
-                            const chip = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 0];
-                            const flag = vram_u8[ADR_CELL_HEAD + c * ADR_CELL_SEEK + 1];
+                            const cell = vram_u8[c + 0];
+                            const flag = vram_u8[c + 1];
                             const palette = (flag & 0b1111) ^ el.palxor;
                             const cellFlipX = ((flag & 0b00010000) != 0) != el.flipX;
                             const cellFlipY = ((flag & 0b00100000) != 0) != el.flipY;
                             const invalid = (flag & 0b10000000) != 0;
 
                             cache[i].ci = c;
-                            cache[i].cell = chip;
+                            cache[i].cell = cell;
                             cache[i].palette = palette;
                             cache[i].cellFlipX = cellFlipX;
                             cache[i].cellFlipY = cellFlipY;
@@ -229,7 +224,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                         }
 
                         const cdata = cache[i];
-                        const chip = cdata.cell;
+                        const cell = cdata.cell;
                         const palette = cdata.palette;
                         const cellFlipX = cdata.cellFlipX;
                         const cellFlipY = cdata.cellFlipY;
@@ -239,10 +234,11 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                             const finalDx = cellFlipX ? 7 - dx : dx;
                             const finalDy = cellFlipY ? 7 - el.dy : el.dy;
 
-                            const d = vram_u8[ADR_CHIP_HEAD + (chip + el.bank * 256) * ADR_CHIP_SEEK + finalDy * 4 + Math.floor(finalDx / 2)];
+                            const d = vram_u8[(cell + el.page * 256) * ADR_CELL_SEEK + finalDy * 4 + (finalDx >> 1)];
+
                             const d1 = (finalDx % 2) === 0 ? (d >> 4) & 0xf : (d >> 0) & 0xf;
 
-                            const paletteIndex = d1 + palette * ADR_PALETTE_SEPARATE;
+                            const paletteIndex = d1 + (palette << 4);
 
                             if (paletteIndex % 16 !== 0) {
                                 const color = vram.getUint16(ADR_PALETTE_HEAD + paletteIndex * ADR_PALETTE_SEEK) & 0x7fff;
