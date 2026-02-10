@@ -1,6 +1,6 @@
-import { FPS } from "./constants.js";
-import { DebugTextArea } from "./debug.js";
-import { VConsole } from "./vconsole.js";
+import { FPS } from "./src/constants.js";
+import { DebugTextArea } from "./src/debug.js";
+import { VConsole } from "./src/vconsole.js";
 
 (() => {
     const pause = {
