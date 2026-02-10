@@ -1,7 +1,6 @@
 import { DebugTextArea } from "./debug.js";
 import { CELL, HEIGHT, WIDTH } from "./constants.js";
 import {
-    ADR_TABLE_SEEK,
     ADR_CELL_SEEK,
     ADR_INPUT,
     ADR_MASK_HEAD,
@@ -95,13 +94,12 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
     function getSpriteInfo(index) {
         const sprite = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
         const flags = vram_u8[sprite + 0];
-        const valid = (flags & 0b0001) != 0;
+        const mode = (flags & 0b0011);
 
-        if (!valid) {
+        if (mode == 0) {
             return null;
         }
 
-        const dmode = (flags & 0b0010) != 0;
         const flipX = (flags & 0b0100) != 0;
         const flipY = (flags & 0b1000) != 0;
         const maskIndex = (flags >> 4) & 0b11;
@@ -110,10 +108,9 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
         const page = (option >> 4) & 0b1111;
         const drawX = vram.getInt16(sprite + 2);
         const drawY = vram.getInt16(sprite + 4);
-        const tw = dmode ? 1 : vram_u8[sprite + 6];
-        const th = dmode ? 1 : vram_u8[sprite + 7];
-        const tadr = dmode ? sprite + 8 : vram.getUint16(sprite + 8);
-
+        const tw = vram_u8[sprite + 6];
+        const th = vram_u8[sprite + 7];
+        const tadr = mode == 1 ? sprite + 8 : vram.getUint16(sprite + 8);
         const mask = getMaskBound(maskIndex);
 
         const left = Math.max(0, drawX, mask.left);
@@ -122,6 +119,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
         const bottom = Math.min(HEIGHT, drawY + th * CELL, mask.bottom);
 
         return {
+            mode: mode,
             flipX: flipX,
             flipY: flipY,
             page: page,// 0-15 セル参照が256ずつずれる
@@ -203,11 +201,11 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
                         const dx = lx & 0b111;
                         const ccx = el.flipX ? (el.tw - 1 - cx) : cx;
 
-                        const c = el.tadr + (ccx + el.ccy * el.tw) * ADR_TABLE_SEEK;
+                        const c = ccx + el.ccy * el.tw;
 
                         if (cache[i].ci !== c) {
-                            const cell = vram_u8[c + 0];
-                            const flag = vram_u8[c + 1];
+                            const cell = el.mode == 1 ? vram_u8[el.tadr] + c : vram_u8[el.tadr + c];
+                            const flag = el.mode == 3 ? vram_u8[c + el.tw * el.th] : 0;
                             const palette = (flag & 0b1111) ^ el.palxor;
                             const cellFlipX = ((flag & 0b00010000) != 0) != el.flipX;
                             const cellFlipY = ((flag & 0b00100000) != 0) != el.flipY;

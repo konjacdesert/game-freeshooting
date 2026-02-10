@@ -3,9 +3,6 @@ export const ADR_CELL_SEEK = 32;
 // indexは0x00-0xffまで範囲を取れる
 // bankは0x0-0xfまで範囲を取れるが、実際はその他の管理領域に突っ込むため0-6までしか使えない
 
-export const ADR_TABLE_SEEK = 2;
-// 開始アドレスに制限はないが他の管理領域と被らないように注意
-
 export const MEM_ALL_MAX = 0x10000;
 export const ADR_FIXED_HEAD = 0xF800;
 
