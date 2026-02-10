@@ -82,13 +82,13 @@ export const VCartridge = () => {
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 8, 0xe0); // 
 
             // 
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 0, 0b0000_00_01); // mask_flip_mode
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 0, 0b0000_00_10); // mask_flip_mode
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 1, 0b0011_0000); // page_palette
-            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 2, 0); // x
+            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 2, 16); // x
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 4, 0); // y
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 6, 16); // cw
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 6, 10); // cw
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 7, 16); // ch
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 8, 0x00); // 
+            mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 8, ADR_SPRITE_HEAD); // 
 
             init = true;
             redraw = true;
