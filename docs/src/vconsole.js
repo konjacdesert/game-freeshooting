@@ -205,7 +205,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
 
                         if (cache[i].ci !== c) {
                             const cell = el.mode == 1 ? vram_u8[el.tadr] + c : vram_u8[el.tadr + c];
-                            const flag = el.mode == 3 ? vram_u8[c + el.tw * el.th] : 0;
+                            const flag = el.mode == 3 ? vram_u8[el.tadr + c + el.tw * el.th] : 0;
                             const palette = (flag & 0b1111) ^ el.palxor;
                             const cellFlipX = ((flag & 0b00010000) != 0) != el.flipX;
                             const cellFlipY = ((flag & 0b00100000) != 0) != el.flipY;
