@@ -21,7 +21,9 @@ export const VCartridge = () => {
     let x = 0;
     let y = 0;
 
-    const loader = Loader(["./bin/test.png.bin"]);
+    let i = 0;
+
+    const loader = Loader(["./bin/hex.bin", "./bin/debug.bin"]);
 
     const ADR_CELL_PAGE0 = 0x0000;// 1ページは32*256バイト
     const ADR_CELL_PAGE1 = 0x2000;
@@ -34,8 +36,12 @@ export const VCartridge = () => {
      * @param {DataView} mem
      */
     function update(mem) {
-        if (loader.getState(0) == "idle") loader.requestLoad(0);
-        if (loader.getState(0) != "ready") { console.log("loading"); return; }
+        if (!init) {
+            if (loader.getState(0) == "idle") loader.requestLoad(0);
+            if (loader.getState(1) == "idle") loader.requestLoad(1);
+            const loadded = [0, 1].map(i => loader.getState(i)).filter(s => s == "ready").length;
+            if (loadded < 2) { console.log("loading"); return; }
+        }
 
         let redraw = false;
 
@@ -65,6 +71,17 @@ export const VCartridge = () => {
                 if (d) dsc.set(d);
                 loader.requestRelease(0);
             }
+            // デバッグ用セル
+            {
+                const dsc = new Uint8Array(mem.buffer, ADR_CELL_PAGE2, 0x2000);
+                const d = loader.getData(1);
+                if (d) dsc.set(d);
+                loader.requestRelease(1);
+            }
+
+            mem.setUint8(0xff12, 0x00);
+            mem.setUint8(0xff12, 0x00);
+            mem.setUint8(0xff12, 0x00);
 
             // マスク
             mem.setUint8(ADR_MASK_HEAD + ADR_MASK_SEEK * 0 + 0, 0); // left
@@ -74,7 +91,7 @@ export const VCartridge = () => {
 
             // カーソルスプライト
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 0, 0b0000_00_01); // mask_flip_mode
-            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 1, 0b0011_0000); // page_palette
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 1, 0b0010_0000); // page_palette
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 2, 0); // x
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 4, 0); // y
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 6, 1); // cw
@@ -89,6 +106,15 @@ export const VCartridge = () => {
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 6, 10); // cw
             mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 7, 16); // ch
             mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 1 + 8, ADR_SPRITE_HEAD); // 
+
+            // 
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 0, 0b0000_00_10); // mask_flip_mode
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 1, 0b0011_0000); // page_palette
+            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 2, 0); // x
+            mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 4, HEIGHT - CELL); // y
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 6, 3); // cw
+            mem.setUint8(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 7, 1); // ch
+            mem.setUint16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 2 + 8, 0xff12); // 
 
             init = true;
             redraw = true;
@@ -127,7 +153,27 @@ export const VCartridge = () => {
             dir = 0;
         }
 
-        {
+        if (inputs & PAD_FLAG.Start) {
+            if (dir & PAD_FLAG.Left) {
+                i -= 1;
+                redraw = true;
+            }
+            if (dir & PAD_FLAG.Right) {
+                i += 1;
+                redraw = true;
+            }
+            if (dir & PAD_FLAG.Up) {
+                i -= 0x10;
+                redraw = true;
+            }
+            if (dir & PAD_FLAG.Down) {
+                i += 0x10;
+                redraw = true;
+            }
+            if (i < 0) i = 0;
+            if (i > 0xff) i = 0xff;
+        }
+        else {
             if (dir & PAD_FLAG.Left) {
                 x -= 1;
                 redraw = true;
@@ -149,8 +195,17 @@ export const VCartridge = () => {
             if (y < 0) y = 0;
             if (y >= CH) y = CH - 1;
         }
+        if (down & PAD_FLAG.X) {
+            if (x >= 0x02 && x <= 0x0b && y >= 0x00 && y <= 0x0f) {
+                const addr = ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * y + (x - 0x02);
+                mem.setUint8(addr, i);
+            }
+        }
 
         if (redraw) {
+            mem.setUint8(0xff12, x);
+            mem.setUint8(0xff13, y);
+            mem.setUint8(0xff14, i);
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 2, x * CELL);
             mem.setInt16(ADR_SPRITE_HEAD + ADR_SPRITE_SEEK * 0 + 4, y * CELL);
         }
