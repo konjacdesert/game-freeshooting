@@ -34,6 +34,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
     const cart = typeof VCartridge !== 'undefined' ? VCartridge() : null;
 
     const ctx = canvas.getContext("2d", { alpha: false });
+    if (ctx == null) throw new Error("Failed to get 2D context");
     const imageData = ctx.createImageData(canvas.width, canvas.height);
     const frame_u32 = new Uint32Array(imageData.data.buffer);
     frame_u32.fill(0xff000000);
@@ -273,7 +274,7 @@ export const VConsole = (/** @type {HTMLCanvasElement} */ canvas) => {
 
         drawSprites();
 
-        ctx.putImageData(imageData, 0, 0);
+        ctx?.putImageData(imageData, 0, 0);
 
     }
 
