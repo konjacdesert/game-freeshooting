@@ -34,6 +34,8 @@ const GLYPH = {
     Star0: 19,
     Star1: 20,
     Ground: 21,
+    UFOLeft: 22,
+    UFORight: 23,
     FontStart: 32,
 };
 
@@ -61,6 +63,8 @@ const GAME_GLYPHS = [
     [GLYPH.Star0, [0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]],
     [GLYPH.Star1, [0x00, 0x00, 0x20, 0x00, 0x00, 0x00, 0x00, 0x00]],
     [GLYPH.Ground, [0xff, 0x55, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00]],
+    [GLYPH.UFOLeft, [0x00, 0x06, 0x3f, 0x7f, 0xff, 0x3f, 0x0f, 0x00]],
+    [GLYPH.UFORight, [0x00, 0x60, 0xfc, 0xfe, 0xff, 0xfc, 0xf0, 0x00]],
 ];
 
 const FONT_CHARACTERS = "0123456789ACDEGILMNOPRSTUVWY";
@@ -111,6 +115,7 @@ const SPRITE = {
     PlayerShot: 1,
     EnemyShotFirst: 2,
     Explosion: 6,
+    UFO: 7,
     EnemyFirst: 8,
     ShieldFirst: 48,
     Ground: 52,
@@ -137,12 +142,16 @@ const ENEMY_ROW_GAP = 16;
 const PLAYER_Y = 252;
 const SHIELD_Y = 224;
 const SHIELD_X = [28, 80, 132, 184];
+const SHIELD_INITIAL_DURABILITY = 3;
+const UFO_Y = 24;
+const UFO_FREEZE_FRAMES = 180;
 
 const TABLE_SCORE = ADR_WORK_HEAD + 0x10;
 const TABLE_LIVES = ADR_WORK_HEAD + 0x20;
 const TABLE_MESSAGE = ADR_WORK_HEAD + 0x30;
 const TABLE_PROMPT = ADR_WORK_HEAD + 0x40;
 const TABLE_GROUND = ADR_WORK_HEAD + 0x60;
+const TABLE_UFO = TABLE_GROUND + WIDTH / CELL + 4;
 
 const STAR_POSITIONS = [
     [13, 31], [41, 46], [68, 25], [101, 39], [135, 23], [171, 42], [205, 29],
@@ -162,16 +171,21 @@ export const VCartridge = () => {
     let formationX = 28;
     let formationY = 52;
     let formationDirection = 1;
+    let enemyFlip = false;
+    let formationTimer = 0;
     let enemyFireTimer = 60;
     let fireCooldown = 0;
     let hitTimer = 0;
+    let ufoTimer = 0;
+    let enemyFreezeTimer = 0;
 
     /** @type {{row:number, column:number, alive:boolean}[]} */
     let enemies = [];
-    const shields = [0, 0, 0, 0];
+    const shields = SHIELD_X.map(() => SHIELD_INITIAL_DURABILITY);
     const playerShot = { active: false, x: 0, y: 0 };
     const enemyShots = Array.from({ length: 4 }, () => ({ active: false, x: 0, y: 0 }));
     const enemyExplosion = { active: false, x: 0, y: 0, timer: 0 };
+    const ufo = { active: false, x: 0, direction: 1 };
 
     /**
      * @param {DataView} mem
@@ -304,10 +318,16 @@ export const VCartridge = () => {
         for (let index = 0; index < WIDTH / CELL; index++) {
             mem.setUint8(TABLE_GROUND + index, GLYPH.Ground);
         }
+        mem.setUint8(TABLE_UFO, GLYPH.UFOLeft);
+        mem.setUint8(TABLE_UFO + 1, GLYPH.UFORight);
 
         resetWorld();
         gameState = STATE.Title;
         initialized = true;
+    }
+
+    function nextUfoDelay() {
+        return 600 + Math.floor(Math.random() * 361);
     }
 
     function resetWorld(preserveProgress = false) {
@@ -320,16 +340,23 @@ export const VCartridge = () => {
         formationX = 28;
         formationY = 52;
         formationDirection = 1;
+        enemyFlip = false;
+        formationTimer = 0;
         enemyFireTimer = 60;
         fireCooldown = 0;
         hitTimer = 0;
+        ufoTimer = nextUfoDelay();
+        enemyFreezeTimer = 0;
+        ufo.active = false;
+        ufo.x = 0;
+        ufo.direction = 1;
         enemies = [];
         for (let row = 0; row < ENEMY_ROWS; row++) {
             for (let column = 0; column < ENEMY_COLUMNS; column++) {
                 enemies.push({ row: row, column: column, alive: true });
             }
         }
-        shields.fill(0);
+        shields.fill(SHIELD_INITIAL_DURABILITY);
         playerShot.active = false;
         for (const shot of enemyShots) shot.active = false;
         enemyExplosion.active = false;
@@ -354,14 +381,35 @@ export const VCartridge = () => {
      */
     function damageShieldAt(x, y) {
         for (let index = 0; index < shields.length; index++) {
-            if (shields[index] >= 3) continue;
+            if (shields[index] <= 0) continue;
             if (x >= SHIELD_X[index] && x < SHIELD_X[index] + CELL * 2 &&
                 y >= SHIELD_Y && y < SHIELD_Y + CELL) {
-                shields[index]++;
+                shields[index]--;
                 return true;
             }
         }
         return false;
+    }
+
+    function updateUfo() {
+        if (enemyFreezeTimer > 0) {
+            enemyFreezeTimer--;
+            return;
+        }
+        if (!ufo.active) {
+            ufoTimer--;
+            if (ufoTimer > 0) return;
+            ufo.active = true;
+            ufo.direction = Math.random() < 0.5 ? 1 : -1;
+            ufo.x = ufo.direction === 1 ? -CELL * 2 : WIDTH;
+            return;
+        }
+
+        ufo.x += ufo.direction;
+        if (ufo.x < -CELL * 2 || ufo.x > WIDTH) {
+            ufo.active = false;
+            ufoTimer = nextUfoDelay();
+        }
     }
 
     function updatePlayerShot() {
@@ -372,6 +420,19 @@ export const VCartridge = () => {
 
         if (playerShot.y < -CELL) {
             playerShot.active = false;
+            return;
+        }
+        if (ufo.active && shotX >= ufo.x && shotX < ufo.x + CELL * 2 &&
+            playerShot.y < UFO_Y + CELL && playerShot.y + 6 >= UFO_Y) {
+            ufo.active = false;
+            ufoTimer = nextUfoDelay();
+            enemyFreezeTimer = UFO_FREEZE_FRAMES;
+            playerShot.active = false;
+            score += 100;
+            enemyExplosion.active = true;
+            enemyExplosion.x = ufo.x + CELL / 2;
+            enemyExplosion.y = UFO_Y;
+            enemyExplosion.timer = 14;
             return;
         }
         if (damageShieldAt(shotX, shotY)) {
@@ -432,9 +493,17 @@ export const VCartridge = () => {
     function updateEnemyFormation() {
         const alive = enemies.filter(enemy => enemy.alive);
         if (alive.length === 0) return;
+
+        if (formationTimer > 0) {
+            formationTimer--;
+            return;
+        } else {
+            formationTimer = alive.length;
+        }
+
         const minimumColumn = Math.min(...alive.map(enemy => enemy.column));
         const maximumColumn = Math.max(...alive.map(enemy => enemy.column));
-        const speed = 0.35 + (ENEMY_COUNT - alive.length) * 0.018;
+        const speed = 2 + ((ENEMY_COUNT - alive.length) / ENEMY_COUNT) * 4;
         const nextX = formationX + formationDirection * speed;
         const nextLeft = nextX + minimumColumn * ENEMY_COLUMN_GAP;
         const nextRight = nextX + maximumColumn * ENEMY_COLUMN_GAP + CELL;
@@ -445,8 +514,12 @@ export const VCartridge = () => {
         } else {
             formationX = nextX;
         }
+        enemyFlip = !enemyFlip;
 
         const lowestEnemyY = Math.max(...alive.map(enemy => enemyPosition(enemy).y));
+        if (lowestEnemyY + CELL >= SHIELD_Y) {
+            shields.fill(0);
+        }
         if (lowestEnemyY + CELL >= PLAYER_Y - CELL) {
             lives = 0;
             gameState = STATE.GameOver;
@@ -497,13 +570,15 @@ export const VCartridge = () => {
             fireCooldown = 10;
         }
 
+        updateUfo();
         updatePlayerShot();
-        if (gameState !== STATE.Playing) return;
-        updateEnemyFormation();
-        if (gameState !== STATE.Playing) return;
+        if (enemyFreezeTimer <= 0) {
+            updateEnemyFormation();
+        } else if (enemyFreezeTimer % 6 === 0) {
+            enemyFlip = !enemyFlip;
+        }
         updateEnemyShots();
-        if (gameState !== STATE.Playing) return;
-        fireEnemyShot();
+        if (enemyFreezeTimer <= 0) fireEnemyShot();
     }
 
     function updateHit() {
@@ -528,14 +603,13 @@ export const VCartridge = () => {
             putSprite(mem, SPRITE.EnemyFirst + index, GLYPH.Empty, 0, 0, PALETTE.White, false);
             return;
         }
-        const animation = (frame >> 4) & 1;
-        let cell = animation ? GLYPH.InvaderC1 : GLYPH.InvaderC0;
+        let cell = enemyFlip ? GLYPH.InvaderC1 : GLYPH.InvaderC0;
         let palette = PALETTE.Green;
         if (enemy.row === 0) {
-            cell = animation ? GLYPH.InvaderA1 : GLYPH.InvaderA0;
+            cell = enemyFlip ? GLYPH.InvaderA1 : GLYPH.InvaderA0;
             palette = PALETTE.Pink;
         } else if (enemy.row < 3) {
-            cell = animation ? GLYPH.InvaderB1 : GLYPH.InvaderB0;
+            cell = enemyFlip ? GLYPH.InvaderB1 : GLYPH.InvaderB0;
             palette = PALETTE.Cyan;
         }
         const position = enemyPosition(enemy);
@@ -550,6 +624,7 @@ export const VCartridge = () => {
         putSprite(mem, SPRITE.Player, playerCell, playerX, PLAYER_Y, playerPalette, playerVisible);
         putSprite(mem, SPRITE.PlayerShot, GLYPH.PlayerShot, playerShot.x, playerShot.y,
             PALETTE.Yellow, playerShot.active);
+        putTableSprite(mem, SPRITE.UFO, TABLE_UFO, ufo.x, UFO_Y, 2, PALETTE.Yellow, ufo.active);
 
         for (let index = 0; index < enemyShots.length; index++) {
             const shot = enemyShots[index];
@@ -563,9 +638,10 @@ export const VCartridge = () => {
             renderEnemy(mem, enemies[index], index);
         }
         for (let index = 0; index < shields.length; index++) {
-            const damage = shields[index];
+            const durability = shields[index];
+            const damage = Math.min(SHIELD_INITIAL_DURABILITY - durability, SHIELD_INITIAL_DURABILITY - 1);
             putSprite(mem, SPRITE.ShieldFirst + index, GLYPH.Shield0Left + damage * 2,
-                SHIELD_X[index], SHIELD_Y, PALETTE.Green, damage < 3, 2);
+                SHIELD_X[index], SHIELD_Y, PALETTE.Green, durability > 0, 2);
         }
 
         putTableSprite(mem, SPRITE.Ground, TABLE_GROUND, 0, 270, WIDTH / CELL, PALETTE.Blue);
