@@ -169,6 +169,7 @@ export const VCartridge = () => {
     let gameState = STATE.Title;
     let score = 0;
     let lives = 3;
+    let round = 0;
     let playerX = (WIDTH - CELL) / 2;
     let formationX = 28;
     let formationY = 52;
@@ -333,7 +334,7 @@ export const VCartridge = () => {
         return 600 + Math.floor(Math.random() * 361);
     }
 
-    function resetWorld(resetScore = true, resetLives = true) {
+    function resetWorld(toRound = 0, resetScore = true, resetLives = true) {
         frame = 0;
         if (resetScore) {
             score = 0;
@@ -341,9 +342,10 @@ export const VCartridge = () => {
         if (resetLives) {
             lives = 3;
         }
+        round = toRound;
         playerX = (WIDTH - CELL) / 2;
         formationX = 28;
-        formationY = 52;
+        formationY = 52 + Math.min(round * CELL, 4 * CELL);
         formationDirection = 1;
         enemyFlip = false;
         formationTimer = 0;
@@ -368,8 +370,13 @@ export const VCartridge = () => {
         enemyExplosion.active = false;
     }
 
-    function startGame(preserveProgress = false) {
-        resetWorld(preserveProgress, preserveProgress);
+    function startNewGame() {
+        resetWorld(0, true, true);
+        gameState = STATE.Playing;
+    }
+
+    function startNextRound() {
+        resetWorld(round + 1, false, false);
         gameState = STATE.Playing;
     }
 
@@ -439,7 +446,7 @@ export const VCartridge = () => {
             playerShot.y < UFO_Y + CELL && playerShot.y + 6 >= UFO_Y) {
             ufo.active = false;
             ufoTimer = nextUfoDelay();
-            enemyFreezeTimer = UFO_FREEZE_FRAMES;
+            enemyFreezeTimer = Math.max(60, UFO_FREEZE_FRAMES - round * 30);
             playerShot.active = false;
             score += 100;
             enemyExplosion.active = true;
@@ -564,7 +571,7 @@ export const VCartridge = () => {
         }
 
         const destroyed = ENEMY_COUNT - enemies.filter(enemy => enemy.alive).length;
-        enemyFireTimer = Math.max(28, 85 - destroyed) + Math.floor(Math.random() * 35);
+        enemyFireTimer = Math.max(5, 85 - destroyed - round * 5) + Math.floor(Math.random() * Math.max(5, 35 - round * 5));
     }
 
     /** @param {number} inputs */
@@ -701,14 +708,14 @@ export const VCartridge = () => {
 
         const startPressed = pressed & PAD_FLAG.Start;
         if (gameState === STATE.Title) {
-            if (startPressed) startGame(false);
+            if (startPressed) startNewGame();
         } else if (gameState === STATE.Win) {
             autoAdvanceTimer++;
-            if (autoAdvanceTimer >= AUTO_ADVANCE_FRAMES) startGame(true);
+            if (autoAdvanceTimer >= AUTO_ADVANCE_FRAMES) startNextRound();
         } else if (gameState === STATE.GameOver) {
             autoAdvanceTimer++;
             if (autoAdvanceTimer >= AUTO_ADVANCE_FRAMES) {
-                resetWorld(false, true);// スコアは残す・ライフはリセット
+                resetWorld(0, false, true);// スコアは残す・ライフはリセット
                 gameState = STATE.Title;
             }
         } else if (gameState === STATE.Playing) {
