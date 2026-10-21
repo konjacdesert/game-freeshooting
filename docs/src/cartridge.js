@@ -67,7 +67,7 @@ const GAME_GLYPHS = [
     [GLYPH.UFORight, [0x00, 0x60, 0xfc, 0xfe, 0xff, 0xfc, 0xf0, 0x00]],
 ];
 
-const FONT_CHARACTERS = "0123456789ACDEGILMNOPRSTUVWY";
+const FONT_CHARACTERS = "0123456789ACDEGILMNOPRSTUVWXY";
 const FONT_GLYPHS = [
     [0x70, 0x88, 0x98, 0xa8, 0xc8, 0x88, 0x70, 0x00],
     [0x20, 0x60, 0x20, 0x20, 0x20, 0x20, 0x70, 0x00],
@@ -96,6 +96,7 @@ const FONT_GLYPHS = [
     [0x88, 0x88, 0x88, 0x88, 0x88, 0x88, 0x70, 0x00],
     [0x88, 0x88, 0x88, 0x88, 0x88, 0x50, 0x20, 0x00],
     [0x88, 0x88, 0x88, 0xa8, 0xa8, 0xd8, 0x88, 0x00],
+    [0x88, 0x88, 0x50, 0x20, 0x50, 0x88, 0x88, 0x00],
     [0x88, 0x88, 0x50, 0x20, 0x20, 0x20, 0x20, 0x00],
 ];
 
@@ -145,6 +146,7 @@ const SHIELD_X = [28, 80, 132, 184];
 const SHIELD_INITIAL_DURABILITY = 3;
 const UFO_Y = 24;
 const UFO_FREEZE_FRAMES = 180;
+const AUTO_ADVANCE_FRAMES = 180;
 
 const TABLE_SCORE = ADR_WORK_HEAD + 0x10;
 const TABLE_LIVES = ADR_WORK_HEAD + 0x20;
@@ -178,6 +180,7 @@ export const VCartridge = () => {
     let hitTimer = 0;
     let ufoTimer = 0;
     let enemyFreezeTimer = 0;
+    let autoAdvanceTimer = 0;
 
     /** @type {{row:number, column:number, alive:boolean}[]} */
     let enemies = [];
@@ -330,10 +333,12 @@ export const VCartridge = () => {
         return 600 + Math.floor(Math.random() * 361);
     }
 
-    function resetWorld(preserveProgress = false) {
+    function resetWorld(resetScore = true, resetLives = true) {
         frame = 0;
-        if (!preserveProgress) {
+        if (resetScore) {
             score = 0;
+        }
+        if (resetLives) {
             lives = 3;
         }
         playerX = (WIDTH - CELL) / 2;
@@ -347,6 +352,7 @@ export const VCartridge = () => {
         hitTimer = 0;
         ufoTimer = nextUfoDelay();
         enemyFreezeTimer = 0;
+        autoAdvanceTimer = 0;
         ufo.active = false;
         ufo.x = 0;
         ufo.direction = 1;
@@ -363,8 +369,15 @@ export const VCartridge = () => {
     }
 
     function startGame(preserveProgress = false) {
-        resetWorld(preserveProgress);
+        resetWorld(preserveProgress, preserveProgress);
         gameState = STATE.Playing;
+    }
+
+    function enterGameOver() {
+        gameState = STATE.GameOver;
+        autoAdvanceTimer = 0;
+        playerShot.active = false;
+        for (const shot of enemyShots) shot.active = false;
     }
 
     /** @param {{row:number, column:number}} enemy */
@@ -454,6 +467,7 @@ export const VCartridge = () => {
                 enemyExplosion.timer = 14;
                 if (!enemies.some(candidate => candidate.alive)) {
                     gameState = STATE.Win;
+                    autoAdvanceTimer = 0;
                     for (const shot of enemyShots) shot.active = false;
                 }
                 return;
@@ -520,11 +534,9 @@ export const VCartridge = () => {
         if (lowestEnemyY + CELL >= SHIELD_Y) {
             shields.fill(0);
         }
-        if (lowestEnemyY + CELL >= PLAYER_Y - CELL) {
+        if (lowestEnemyY + CELL >= PLAYER_Y) {
             lives = 0;
-            gameState = STATE.GameOver;
-            playerShot.active = false;
-            for (const shot of enemyShots) shot.active = false;
+            enterGameOver();
         }
     }
 
@@ -585,7 +597,7 @@ export const VCartridge = () => {
         hitTimer--;
         if (hitTimer > 0) return;
         if (lives <= 0) {
-            gameState = STATE.GameOver;
+            enterGameOver();
             return;
         }
         playerX = (WIDTH - CELL) / 2;
@@ -654,15 +666,14 @@ export const VCartridge = () => {
         let prompt = "";
         let messagePalette = PALETTE.Yellow;
         if (gameState === STATE.Title) {
-            message = "VOID INVADERS";
+            message = "SOREPPOINVADERS";
             prompt = "PRESS START";
         } else if (gameState === STATE.GameOver) {
             message = "GAME OVER";
-            prompt = "PRESS START";
             messagePalette = PALETTE.Red;
         } else if (gameState === STATE.Win) {
             message = "YOU WIN";
-            prompt = "PRESS START";
+            prompt = "TRY NEXT ROUND";
             messagePalette = PALETTE.Green;
         }
         putText(mem, SPRITE.Message, TABLE_MESSAGE, message, centeredX(message), 144, messagePalette);
@@ -689,8 +700,17 @@ export const VCartridge = () => {
         }
 
         const startPressed = pressed & PAD_FLAG.Start;
-        if (gameState === STATE.Title || gameState === STATE.GameOver || gameState === STATE.Win) {
-            if (startPressed) startGame(gameState === STATE.Win);
+        if (gameState === STATE.Title) {
+            if (startPressed) startGame(false);
+        } else if (gameState === STATE.Win) {
+            autoAdvanceTimer++;
+            if (autoAdvanceTimer >= AUTO_ADVANCE_FRAMES) startGame(true);
+        } else if (gameState === STATE.GameOver) {
+            autoAdvanceTimer++;
+            if (autoAdvanceTimer >= AUTO_ADVANCE_FRAMES) {
+                resetWorld(false, true);// スコアは残す・ライフはリセット
+                gameState = STATE.Title;
+            }
         } else if (gameState === STATE.Playing) {
             updatePlaying(inputs);
         } else if (gameState === STATE.Hit) {
