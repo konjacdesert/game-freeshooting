@@ -7,6 +7,7 @@ import {
     ADR_SPRITE_NUM,
     ADR_SPRITE_SEEK,
     ADR_PALETTE_HEAD,
+    ADR_PALETTE_NUM,
     ADR_PALETTE_SEEK,
     ADR_WORK_HEAD,
 } from "./memoryMap.js";
@@ -135,31 +136,115 @@ const STATE = {
     Win: "win",
 };
 
+const DIRECTION_LEFT = -1;
+const DIRECTION_RIGHT = 1;
+const RANDOM_DIRECTION_THRESHOLD = 0.5;
+
+const GLYPH_SIZE = CELL;
+const GLYPH_COLUMN_STEP = 2;
+const GLYPH_BYTES_PER_ROW = GLYPH_SIZE / GLYPH_COLUMN_STEP;
+const GLYPH_FIRST_BIT = 0x80;
+const GLYPH_PIXEL_ON = 0xf;
+const GLYPH_NIBBLE_SHIFT = 4;
+
+const PALETTE_SLOT_MASK = 0xf;
+const PALETTE_BANK_SIZE = 16;
+const PALETTE_ACCENT_INDEX = 0xf;
+const PALETTE_RED_SHIFT = 10;
+const PALETTE_GREEN_SHIFT = 5;
+const MASK_ORIGIN_Y_OFFSET = 1;
+const MASK_WIDTH_OFFSET = 2;
+const MASK_HEIGHT_OFFSET = 3;
+const TABLE_UFO_OFFSET = 4;
+const UFO_RIGHT_GLYPH_OFFSET = 1;
+
+const SPRITE_PALETTE_OFFSET = 1;
+const SPRITE_X_OFFSET = 2;
+const SPRITE_Y_OFFSET = 4;
+const SPRITE_WIDTH_OFFSET = 6;
+const SPRITE_HEIGHT_OFFSET = 7;
+const SPRITE_DATA_OFFSET = 8;
+const SPRITE_RESERVED_OFFSET = 9;
+const SPRITE_VISIBLE_FLAG = 0b0000_00_01;
+const TABLE_SPRITE_FLAG = 0b0000_00_10;
+const SINGLE_CELL_SIZE = 1;
+
 const ENEMY_ROWS = 5;
 const ENEMY_COLUMNS = 8;
 const ENEMY_COUNT = ENEMY_ROWS * ENEMY_COLUMNS;
 const ENEMY_COLUMN_GAP = 20;
 const ENEMY_ROW_GAP = 16;
+const FORMATION_START_X = 28;
+const FORMATION_START_Y = 52;
+const MAX_FORMATION_DROP = CELL * 4;
+const FORMATION_BASE_SPEED = 2;
+const FORMATION_SPEED_RANGE = 4;
 const PLAYER_Y = 252;
+const PLAYER_ENTER_TIMER = 48;
+const PLAYER_SPEED = 2;
 const SHIELD_Y = 224;
 const SHIELD_X = [28, 80, 132, 184];
+const SHIELD_WIDTH_CELLS = 2;
+const SHIELD_WIDTH = CELL * SHIELD_WIDTH_CELLS;
 const SHIELD_INITIAL_DURABILITY = 3;
+const MAX_SHIELD_DAMAGE = SHIELD_INITIAL_DURABILITY - 1;
 const UFO_Y = 24;
+const UFO_WIDTH_CELLS = 2;
+const UFO_WIDTH = CELL * UFO_WIDTH_CELLS;
 const UFO_FREEZE_FRAMES = 180;
+const UFO_MIN_FREEZE_FRAMES = 60;
+const UFO_FREEZE_ROUND_STEP = 30;
+const UFO_DELAY_MIN_FRAMES = 600;
+const UFO_DELAY_RANDOM_FRAMES = 361;
+const UFO_SCORE = 100;
 const AUTO_ADVANCE_FRAMES = 240;
+
+const INITIAL_LIVES = 3;
+const INITIAL_ROUND = 0;
+const INITIAL_ENEMY_FIRE_TIMER = 60;
+const ENEMY_SHOT_COUNT = 4;
+const PLAYER_SHOT_SPEED = 6;
+const ENEMY_SHOT_SPEED = 2;
+const SHOT_X_OFFSET = 3;
+const PLAYER_SHOT_Y_OFFSET = 2;
+const PLAYER_SHOT_HEIGHT = 6;
+const ENEMY_SHOT_Y_OFFSET = 5;
+const FIRE_COOLDOWN_FRAMES = 16;
+const ENEMY_EXPLOSION_FRAMES = 14;
+const PLAYER_HIT_FRAMES = 70;
+const HIT_RECOVERY_ENEMY_FIRE_TIMER = 45;
+const ENEMY_SCORES = [40, 30, 20, 20, 10];
+const TOP_ENEMY_ROW_COUNT = 3;
+const ENEMY_FIRE_MIN_DELAY = 5;
+const ENEMY_FIRE_BASE_DELAY = 85;
+const ENEMY_FIRE_ROUND_STEP = 5;
+const ENEMY_FIRE_RANDOM_RANGE = 35;
+const HIT_BLINK_INTERVAL = 4;
+const HIT_BLINK_MASK = 1;
+const ENEMY_SHOT_ANIMATION_INTERVAL = 6;
+const ENEMY_SHOT_FRAME_SHIFT = 2;
+const GROUND_Y = 270;
+const SCORE_DIGITS = 6;
+const LIVES_DISPLAY_WIDTH = 8;
+const MESSAGE_Y = 144;
+const PROMPT_Y = 164;
+const STAR_FRAME_MASK = 1;
+const STAR_PALETTE_INTERVAL = 3;
 
 const TABLE_SCORE = ADR_WORK_HEAD + 0x10;
 const TABLE_LIVES = ADR_WORK_HEAD + 0x20;
 const TABLE_MESSAGE = ADR_WORK_HEAD + 0x30;
 const TABLE_PROMPT = ADR_WORK_HEAD + 0x40;
 const TABLE_GROUND = ADR_WORK_HEAD + 0x60;
-const TABLE_UFO = TABLE_GROUND + WIDTH / CELL + 4;
+const TABLE_UFO = TABLE_GROUND + WIDTH / CELL + TABLE_UFO_OFFSET;
 
 const STAR_POSITIONS = [
-    [13, 31], [41, 46], [68, 25], [101, 39], [135, 23], [171, 42], [205, 29],
-    [21, 91], [55, 113], [92, 78], [123, 105], [157, 86], [198, 119],
-    [9, 151], [45, 177], [76, 145], [112, 187], [148, 156], [180, 181], [214, 148],
-    [18, 208], [62, 202], [118, 211], [168, 199], [207, 216],
+    [13, 31], [41, 46], [68, 25], [101, 39],
+    [135, 23], [171, 42], [205, 29], [21, 91],
+    [55, 113], [92, 78], [123, 105], [157, 86],
+    [198, 119], [9, 151], [45, 177], [76, 145],
+    [112, 187], [148, 156], [180, 181], [214, 148],
+    [18, 208], [62, 202], [118, 211], [168, 199],
 ];
 
 export const VCartridge = () => {
@@ -168,15 +253,16 @@ export const VCartridge = () => {
     let frame = 0;
     let gameState = STATE.Title;
     let score = 0;
-    let lives = 3;
-    let round = 0;
+    let lives = INITIAL_LIVES;
+    let round = INITIAL_ROUND;
     let playerX = (WIDTH - CELL) / 2;
-    let formationX = 28;
-    let formationY = 52;
-    let formationDirection = 1;
+    let playerEnterTimer = PLAYER_ENTER_TIMER;
+    let formationX = FORMATION_START_X;
+    let formationY = FORMATION_START_Y;
+    let formationDirection = DIRECTION_RIGHT;
     let enemyFlip = false;
     let formationTimer = 0;
-    let enemyFireTimer = 60;
+    let enemyFireTimer = INITIAL_ENEMY_FIRE_TIMER;
     let fireCooldown = 0;
     let hitTimer = 0;
     let ufoTimer = 0;
@@ -187,9 +273,9 @@ export const VCartridge = () => {
     let enemies = [];
     const shields = SHIELD_X.map(() => SHIELD_INITIAL_DURABILITY);
     const playerShot = { active: false, x: 0, y: 0 };
-    const enemyShots = Array.from({ length: 4 }, () => ({ active: false, x: 0, y: 0 }));
+    const enemyShots = Array.from({ length: ENEMY_SHOT_COUNT }, () => ({ active: false, x: 0, y: 0 }));
     const enemyExplosion = { active: false, x: 0, y: 0, timer: 0 };
-    const ufo = { active: false, x: 0, direction: 1 };
+    const ufo = { active: false, x: 0, direction: DIRECTION_RIGHT };
 
     /**
      * @param {DataView} mem
@@ -198,11 +284,11 @@ export const VCartridge = () => {
      */
     function writeGlyph(mem, cellIndex, rows) {
         const cellAddress = cellIndex * ADR_CELL_SEEK;
-        for (let row = 0; row < 8; row++) {
-            for (let column = 0; column < 8; column += 2) {
-                const left = (rows[row] & (0x80 >> column)) !== 0 ? 0xf : 0;
-                const right = (rows[row] & (0x80 >> (column + 1))) !== 0 ? 0xf : 0;
-                mem.setUint8(cellAddress + row * 4 + column / 2, (left << 4) | right);
+        for (let row = 0; row < GLYPH_SIZE; row++) {
+            for (let column = 0; column < GLYPH_SIZE; column += GLYPH_COLUMN_STEP) {
+                const left = (rows[row] & (GLYPH_FIRST_BIT >> column)) !== 0 ? GLYPH_PIXEL_ON : 0;
+                const right = (rows[row] & (GLYPH_FIRST_BIT >> (column + 1))) !== 0 ? GLYPH_PIXEL_ON : 0;
+                mem.setUint8(cellAddress + row * GLYPH_BYTES_PER_ROW + column / GLYPH_COLUMN_STEP, (left << GLYPH_NIBBLE_SHIFT) | right);
             }
         }
     }
@@ -218,16 +304,17 @@ export const VCartridge = () => {
      * @param {number} [width]
      * @param {number} [height]
      */
-    function putSprite(mem, index, cell, x, y, palette, visible = true, width = 1, height = 1) {
+    function putSprite(mem, index, cell, x, y, palette, visible = true,
+        width = SINGLE_CELL_SIZE, height = SINGLE_CELL_SIZE) {
         const address = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
-        mem.setUint8(address, visible ? 0b0000_00_01 : 0);
-        mem.setUint8(address + 1, palette & 0xf);
-        mem.setInt16(address + 2, Math.round(x));
-        mem.setInt16(address + 4, Math.round(y));
-        mem.setUint8(address + 6, width);
-        mem.setUint8(address + 7, height);
-        mem.setUint8(address + 8, cell);
-        mem.setUint8(address + 9, 0);
+        mem.setUint8(address, visible ? SPRITE_VISIBLE_FLAG : 0);
+        mem.setUint8(address + SPRITE_PALETTE_OFFSET, palette & PALETTE_SLOT_MASK);
+        mem.setInt16(address + SPRITE_X_OFFSET, Math.round(x));
+        mem.setInt16(address + SPRITE_Y_OFFSET, Math.round(y));
+        mem.setUint8(address + SPRITE_WIDTH_OFFSET, width);
+        mem.setUint8(address + SPRITE_HEIGHT_OFFSET, height);
+        mem.setUint8(address + SPRITE_DATA_OFFSET, cell);
+        mem.setUint8(address + SPRITE_RESERVED_OFFSET, 0);
     }
 
     /**
@@ -242,13 +329,13 @@ export const VCartridge = () => {
      */
     function putTableSprite(mem, index, tableAddress, x, y, width, palette, visible = true) {
         const address = ADR_SPRITE_HEAD + index * ADR_SPRITE_SEEK;
-        mem.setUint8(address, visible ? 0b0000_00_10 : 0);
-        mem.setUint8(address + 1, palette & 0xf);
-        mem.setInt16(address + 2, Math.round(x));
-        mem.setInt16(address + 4, Math.round(y));
-        mem.setUint8(address + 6, width);
-        mem.setUint8(address + 7, 1);
-        mem.setUint16(address + 8, tableAddress);
+        mem.setUint8(address, visible ? TABLE_SPRITE_FLAG : 0);
+        mem.setUint8(address + SPRITE_PALETTE_OFFSET, palette & PALETTE_SLOT_MASK);
+        mem.setInt16(address + SPRITE_X_OFFSET, Math.round(x));
+        mem.setInt16(address + SPRITE_Y_OFFSET, Math.round(y));
+        mem.setUint8(address + SPRITE_WIDTH_OFFSET, width);
+        mem.setUint8(address + SPRITE_HEIGHT_OFFSET, SINGLE_CELL_SIZE);
+        mem.setUint16(address + SPRITE_DATA_OFFSET, tableAddress);
     }
 
     /** @param {string} character */
@@ -299,13 +386,13 @@ export const VCartridge = () => {
             [8, 16, 31],
             [10, 14, 18],
         ];
-        for (let paletteIndex = 0; paletteIndex < 256; paletteIndex++) {
+        for (let paletteIndex = 0; paletteIndex < ADR_PALETTE_NUM; paletteIndex++) {
             mem.setUint16(ADR_PALETTE_HEAD + paletteIndex * ADR_PALETTE_SEEK, 0);
         }
         for (let bank = 0; bank < colors.length; bank++) {
             const [red, green, blue] = colors[bank];
-            const color = (red << 10) | (green << 5) | blue;
-            mem.setUint16(ADR_PALETTE_HEAD + (bank * 16 + 0xf) * ADR_PALETTE_SEEK, color);
+            const color = (red << PALETTE_RED_SHIFT) | (green << PALETTE_GREEN_SHIFT) | blue;
+            mem.setUint16(ADR_PALETTE_HEAD + (bank * PALETTE_BANK_SIZE + PALETTE_ACCENT_INDEX) * ADR_PALETTE_SEEK, color);
         }
 
         for (const [cellIndex, rows] of GAME_GLYPHS) {
@@ -316,14 +403,14 @@ export const VCartridge = () => {
         }
 
         mem.setUint8(ADR_MASK_HEAD, 0);
-        mem.setUint8(ADR_MASK_HEAD + 1, 0);
-        mem.setUint8(ADR_MASK_HEAD + 2, WIDTH / CELL);
-        mem.setUint8(ADR_MASK_HEAD + 3, HEIGHT / CELL);
+        mem.setUint8(ADR_MASK_HEAD + MASK_ORIGIN_Y_OFFSET, 0);
+        mem.setUint8(ADR_MASK_HEAD + MASK_WIDTH_OFFSET, WIDTH / CELL);
+        mem.setUint8(ADR_MASK_HEAD + MASK_HEIGHT_OFFSET, HEIGHT / CELL);
         for (let index = 0; index < WIDTH / CELL; index++) {
             mem.setUint8(TABLE_GROUND + index, GLYPH.Ground);
         }
         mem.setUint8(TABLE_UFO, GLYPH.UFOLeft);
-        mem.setUint8(TABLE_UFO + 1, GLYPH.UFORight);
+        mem.setUint8(TABLE_UFO + UFO_RIGHT_GLYPH_OFFSET, GLYPH.UFORight);
 
         resetWorld();
         gameState = STATE.Title;
@@ -331,25 +418,26 @@ export const VCartridge = () => {
     }
 
     function nextUfoDelay() {
-        return 600 + Math.floor(Math.random() * 361);
+        return UFO_DELAY_MIN_FRAMES + Math.floor(Math.random() * UFO_DELAY_RANDOM_FRAMES);
     }
 
-    function resetWorld(toRound = 0, resetScore = true, resetLives = true) {
+    function resetWorld(toRound = INITIAL_ROUND, resetScore = true, resetLives = true) {
         frame = 0;
         if (resetScore) {
             score = 0;
         }
         if (resetLives) {
-            lives = 3;
+            lives = INITIAL_LIVES;
         }
         round = toRound;
         playerX = (WIDTH - CELL) / 2;
-        formationX = 28;
-        formationY = 52 + Math.min(round * CELL, 4 * CELL);
-        formationDirection = 1;
+        playerEnterTimer = PLAYER_ENTER_TIMER;
+        formationX = FORMATION_START_X;
+        formationY = FORMATION_START_Y + Math.min(round * CELL, MAX_FORMATION_DROP);
+        formationDirection = DIRECTION_RIGHT;
         enemyFlip = false;
         formationTimer = 0;
-        enemyFireTimer = 60;
+        enemyFireTimer = INITIAL_ENEMY_FIRE_TIMER;
         fireCooldown = 0;
         hitTimer = 0;
         ufoTimer = nextUfoDelay();
@@ -357,7 +445,7 @@ export const VCartridge = () => {
         autoAdvanceTimer = 0;
         ufo.active = false;
         ufo.x = 0;
-        ufo.direction = 1;
+        ufo.direction = DIRECTION_RIGHT;
         enemies = [];
         for (let row = 0; row < ENEMY_ROWS; row++) {
             for (let column = 0; column < ENEMY_COLUMNS; column++) {
@@ -402,7 +490,7 @@ export const VCartridge = () => {
     function damageShieldAt(x, y) {
         for (let index = 0; index < shields.length; index++) {
             if (shields[index] <= 0) continue;
-            if (x >= SHIELD_X[index] && x < SHIELD_X[index] + CELL * 2 &&
+            if (x >= SHIELD_X[index] && x < SHIELD_X[index] + SHIELD_WIDTH &&
                 y >= SHIELD_Y && y < SHIELD_Y + CELL) {
                 shields[index]--;
                 return true;
@@ -420,13 +508,13 @@ export const VCartridge = () => {
             ufoTimer--;
             if (ufoTimer > 0) return;
             ufo.active = true;
-            ufo.direction = Math.random() < 0.5 ? 1 : -1;
-            ufo.x = ufo.direction === 1 ? -CELL * 2 : WIDTH;
+            ufo.direction = Math.random() < RANDOM_DIRECTION_THRESHOLD ? DIRECTION_RIGHT : DIRECTION_LEFT;
+            ufo.x = ufo.direction === DIRECTION_RIGHT ? -UFO_WIDTH : WIDTH;
             return;
         }
 
         ufo.x += ufo.direction;
-        if (ufo.x < -CELL * 2 || ufo.x > WIDTH) {
+        if (ufo.x < -UFO_WIDTH || ufo.x > WIDTH) {
             ufo.active = false;
             ufoTimer = nextUfoDelay();
         }
@@ -434,25 +522,25 @@ export const VCartridge = () => {
 
     function updatePlayerShot() {
         if (!playerShot.active) return;
-        playerShot.y -= 4;
-        const shotX = playerShot.x + 3;
-        const shotY = playerShot.y + 2;
+        playerShot.y -= PLAYER_SHOT_SPEED;
+        const shotX = playerShot.x + SHOT_X_OFFSET;
+        const shotY = playerShot.y + PLAYER_SHOT_Y_OFFSET;
 
         if (playerShot.y < -CELL) {
             playerShot.active = false;
             return;
         }
-        if (ufo.active && shotX >= ufo.x && shotX < ufo.x + CELL * 2 &&
-            playerShot.y < UFO_Y + CELL && playerShot.y + 6 >= UFO_Y) {
+        if (ufo.active && shotX >= ufo.x && shotX < ufo.x + UFO_WIDTH &&
+            playerShot.y < UFO_Y + CELL && playerShot.y + PLAYER_SHOT_HEIGHT >= UFO_Y) {
             ufo.active = false;
             ufoTimer = nextUfoDelay();
-            enemyFreezeTimer = Math.max(60, UFO_FREEZE_FRAMES - round * 30);
+            enemyFreezeTimer = Math.max(UFO_MIN_FREEZE_FRAMES, UFO_FREEZE_FRAMES - round * UFO_FREEZE_ROUND_STEP);
             playerShot.active = false;
-            score += 100;
+            score += UFO_SCORE;
             enemyExplosion.active = true;
             enemyExplosion.x = ufo.x + CELL / 2;
             enemyExplosion.y = UFO_Y;
-            enemyExplosion.timer = 14;
+            enemyExplosion.timer = ENEMY_EXPLOSION_FRAMES;
             return;
         }
         if (damageShieldAt(shotX, shotY)) {
@@ -467,11 +555,11 @@ export const VCartridge = () => {
                 playerShot.y < position.y + CELL && playerShot.y + 6 >= position.y) {
                 enemy.alive = false;
                 playerShot.active = false;
-                score += [40, 30, 20, 20, 10][enemy.row];
+                score += ENEMY_SCORES[enemy.row];
                 enemyExplosion.active = true;
                 enemyExplosion.x = position.x;
                 enemyExplosion.y = position.y;
-                enemyExplosion.timer = 14;
+                enemyExplosion.timer = ENEMY_EXPLOSION_FRAMES;
                 if (!enemies.some(candidate => candidate.alive)) {
                     gameState = STATE.Win;
                     autoAdvanceTimer = 0;
@@ -485,7 +573,7 @@ export const VCartridge = () => {
     function hitPlayer() {
         if (gameState !== STATE.Playing) return;
         lives--;
-        hitTimer = 70;
+        hitTimer = PLAYER_HIT_FRAMES;
         gameState = STATE.Hit;
         playerShot.active = false;
         for (const shot of enemyShots) shot.active = false;
@@ -494,9 +582,9 @@ export const VCartridge = () => {
     function updateEnemyShots() {
         for (const shot of enemyShots) {
             if (!shot.active) continue;
-            shot.y += 2;
-            const shotX = shot.x + 3;
-            const shotY = shot.y + 5;
+            shot.y += ENEMY_SHOT_SPEED;
+            const shotX = shot.x + SHOT_X_OFFSET;
+            const shotY = shot.y + ENEMY_SHOT_Y_OFFSET;
             if (damageShieldAt(shotX, shotY)) {
                 shot.active = false;
                 continue;
@@ -524,13 +612,13 @@ export const VCartridge = () => {
 
         const minimumColumn = Math.min(...alive.map(enemy => enemy.column));
         const maximumColumn = Math.max(...alive.map(enemy => enemy.column));
-        const speed = 2 + ((ENEMY_COUNT - alive.length) / ENEMY_COUNT) * 4;
+        const speed = FORMATION_BASE_SPEED + ((ENEMY_COUNT - alive.length) / ENEMY_COUNT) * FORMATION_SPEED_RANGE;
         const nextX = formationX + formationDirection * speed;
         const nextLeft = nextX + minimumColumn * ENEMY_COLUMN_GAP;
         const nextRight = nextX + maximumColumn * ENEMY_COLUMN_GAP + CELL;
 
         if (nextLeft < CELL || nextRight > WIDTH - CELL) {
-            formationDirection *= -1;
+            formationDirection *= DIRECTION_LEFT;
             formationY += CELL;
         } else {
             formationX = nextX;
@@ -571,29 +659,33 @@ export const VCartridge = () => {
         }
 
         const destroyed = ENEMY_COUNT - enemies.filter(enemy => enemy.alive).length;
-        enemyFireTimer = Math.max(5, 85 - destroyed - round * 5) + Math.floor(Math.random() * Math.max(5, 35 - round * 5));
+        enemyFireTimer = Math.max(ENEMY_FIRE_MIN_DELAY, ENEMY_FIRE_BASE_DELAY - destroyed - round * ENEMY_FIRE_ROUND_STEP) + Math.floor(Math.random() * Math.max(ENEMY_FIRE_MIN_DELAY, ENEMY_FIRE_RANDOM_RANGE - round * ENEMY_FIRE_ROUND_STEP));
     }
 
     /** @param {number} inputs */
     function updatePlaying(inputs) {
         let movement = 0;
-        if (inputs & PAD_FLAG.Left) movement--;
-        if (inputs & PAD_FLAG.Right) movement++;
-        playerX = Math.max(CELL, Math.min(WIDTH - CELL * 2, playerX + movement * 2));
+        if (playerEnterTimer > 0) {
+            playerEnterTimer--;
+        } else {
+            if (inputs & PAD_FLAG.Left) movement--;
+            if (inputs & PAD_FLAG.Right) movement++;
+            playerX = Math.max(CELL, Math.min(WIDTH - CELL * 2, playerX + movement * PLAYER_SPEED));
 
-        if (fireCooldown > 0) fireCooldown--;
-        if ((inputs & (PAD_FLAG.Z | PAD_FLAG.X)) && !playerShot.active && fireCooldown === 0) {
-            playerShot.active = true;
-            playerShot.x = playerX;
-            playerShot.y = PLAYER_Y - CELL;
-            fireCooldown = 10;
+            if (fireCooldown > 0 && !playerShot.active) fireCooldown--;
+            if ((inputs & (PAD_FLAG.Z | PAD_FLAG.X)) && !playerShot.active && fireCooldown === 0) {
+                playerShot.active = true;
+                playerShot.x = playerX;
+                playerShot.y = PLAYER_Y - CELL;
+                fireCooldown = FIRE_COOLDOWN_FRAMES;
+            }
         }
 
         updateUfo();
         updatePlayerShot();
         if (enemyFreezeTimer <= 0) {
             updateEnemyFormation();
-        } else if (enemyFreezeTimer % 6 === 0) {
+        } else if (enemyFreezeTimer % ENEMY_SHOT_ANIMATION_INTERVAL === 0) {
             enemyFlip = !enemyFlip;
         }
         updateEnemyShots();
@@ -608,7 +700,8 @@ export const VCartridge = () => {
             return;
         }
         playerX = (WIDTH - CELL) / 2;
-        enemyFireTimer = 45;
+        playerEnterTimer = PLAYER_ENTER_TIMER;
+        enemyFireTimer = HIT_RECOVERY_ENEMY_FIRE_TIMER;
         gameState = STATE.Playing;
     }
 
@@ -627,7 +720,7 @@ export const VCartridge = () => {
         if (enemy.row === 0) {
             cell = enemyFlip ? GLYPH.InvaderA1 : GLYPH.InvaderA0;
             palette = PALETTE.Pink;
-        } else if (enemy.row < 3) {
+        } else if (enemy.row < TOP_ENEMY_ROW_COUNT) {
             cell = enemyFlip ? GLYPH.InvaderB1 : GLYPH.InvaderB0;
             palette = PALETTE.Cyan;
         }
@@ -639,35 +732,30 @@ export const VCartridge = () => {
     function render(mem) {
         const playerVisible = gameState !== STATE.GameOver;
         const playerCell = gameState === STATE.Hit ? GLYPH.PlayerHit : GLYPH.Player;
-        const playerPalette = gameState === STATE.Hit && ((hitTimer >> 2) & 1) ? PALETTE.Red : PALETTE.Green;
-        putSprite(mem, SPRITE.Player, playerCell, playerX, PLAYER_Y, playerPalette, playerVisible);
-        putSprite(mem, SPRITE.PlayerShot, GLYPH.PlayerShot, playerShot.x, playerShot.y,
-            PALETTE.Yellow, playerShot.active);
-        putTableSprite(mem, SPRITE.UFO, TABLE_UFO, ufo.x, UFO_Y, 2, PALETTE.Yellow, ufo.active);
+        const playerPalette = gameState === STATE.Hit && ((hitTimer >> HIT_BLINK_INTERVAL) & HIT_BLINK_MASK) ? PALETTE.Red : PALETTE.Green;
+        putSprite(mem, SPRITE.Player, playerCell, playerX, PLAYER_Y + playerEnterTimer, playerPalette, playerVisible);
+        putSprite(mem, SPRITE.PlayerShot, GLYPH.PlayerShot, playerShot.x, playerShot.y, PALETTE.Yellow, playerShot.active);
+        putTableSprite(mem, SPRITE.UFO, TABLE_UFO, ufo.x, UFO_Y, UFO_WIDTH_CELLS, PALETTE.Yellow, ufo.active);
 
         for (let index = 0; index < enemyShots.length; index++) {
             const shot = enemyShots[index];
-            const cell = (frame >> 2) & 1 ? GLYPH.EnemyShot1 : GLYPH.EnemyShot0;
+            const cell = (frame >> ENEMY_SHOT_FRAME_SHIFT) & HIT_BLINK_MASK ? GLYPH.EnemyShot1 : GLYPH.EnemyShot0;
             putSprite(mem, SPRITE.EnemyShotFirst + index, cell, shot.x, shot.y, PALETTE.Pink, shot.active);
         }
-        putSprite(mem, SPRITE.Explosion, GLYPH.Explosion, enemyExplosion.x, enemyExplosion.y,
-            PALETTE.Yellow, enemyExplosion.active);
+        putSprite(mem, SPRITE.Explosion, GLYPH.Explosion, enemyExplosion.x, enemyExplosion.y, PALETTE.Yellow, enemyExplosion.active);
 
         for (let index = 0; index < enemies.length; index++) {
             renderEnemy(mem, enemies[index], index);
         }
         for (let index = 0; index < shields.length; index++) {
             const durability = shields[index];
-            const damage = Math.min(SHIELD_INITIAL_DURABILITY - durability, SHIELD_INITIAL_DURABILITY - 1);
-            putSprite(mem, SPRITE.ShieldFirst + index, GLYPH.Shield0Left + damage * 2,
-                SHIELD_X[index], SHIELD_Y, PALETTE.Green, durability > 0, 2);
+            const damage = Math.min(SHIELD_INITIAL_DURABILITY - durability, MAX_SHIELD_DAMAGE);
+            putSprite(mem, SPRITE.ShieldFirst + index, GLYPH.Shield0Left + damage * 2, SHIELD_X[index], SHIELD_Y, PALETTE.Green, durability > 0, SHIELD_WIDTH_CELLS);
         }
 
-        putTableSprite(mem, SPRITE.Ground, TABLE_GROUND, 0, 270, WIDTH / CELL, PALETTE.Blue);
-        putText(mem, SPRITE.Score, TABLE_SCORE, `SCORE ${String(score).padStart(6, "0")}`,
-            CELL, CELL, PALETTE.White);
-        putText(mem, SPRITE.Lives, TABLE_LIVES, `LIVES ${lives}`,
-            WIDTH - CELL * 8, CELL, lives > 0 ? PALETTE.White : PALETTE.Red);
+        putTableSprite(mem, SPRITE.Ground, TABLE_GROUND, 0, GROUND_Y, WIDTH / CELL, PALETTE.Blue);
+        putText(mem, SPRITE.Score, TABLE_SCORE, `SCORE ${String(score).padStart(SCORE_DIGITS, "0")}`, CELL, CELL, PALETTE.White);
+        putText(mem, SPRITE.Lives, TABLE_LIVES, `LIVES ${lives}`, WIDTH - CELL * LIVES_DISPLAY_WIDTH, CELL, lives > 0 ? PALETTE.White : PALETTE.Red);
 
         let message = "";
         let prompt = "";
@@ -683,13 +771,12 @@ export const VCartridge = () => {
             prompt = "TRY NEXT ROUND";
             messagePalette = PALETTE.Green;
         }
-        putText(mem, SPRITE.Message, TABLE_MESSAGE, message, centeredX(message), 144, messagePalette);
-        putText(mem, SPRITE.Prompt, TABLE_PROMPT, prompt, centeredX(prompt), 164, PALETTE.White);
+        putText(mem, SPRITE.Message, TABLE_MESSAGE, message, centeredX(message), MESSAGE_Y, messagePalette);
+        putText(mem, SPRITE.Prompt, TABLE_PROMPT, prompt, centeredX(prompt), PROMPT_Y, PALETTE.White);
 
         for (let index = 0; index < STAR_POSITIONS.length; index++) {
             const [x, y] = STAR_POSITIONS[index];
-            putSprite(mem, SPRITE.StarFirst + index, index & 1 ? GLYPH.Star1 : GLYPH.Star0,
-                x, y, index % 3 === 0 ? PALETTE.Blue : PALETTE.Dim);
+            putSprite(mem, SPRITE.StarFirst + index, index & STAR_FRAME_MASK ? GLYPH.Star1 : GLYPH.Star0, x, y, index % STAR_PALETTE_INTERVAL === 0 ? PALETTE.Blue : PALETTE.Dim);
         }
     }
 
@@ -715,7 +802,7 @@ export const VCartridge = () => {
         } else if (gameState === STATE.GameOver) {
             autoAdvanceTimer++;
             if (autoAdvanceTimer >= AUTO_ADVANCE_FRAMES) {
-                resetWorld(0, false, true);// スコアは残す・ライフはリセット
+                resetWorld(INITIAL_ROUND, false, true);// スコアは残す・ライフはリセット
                 gameState = STATE.Title;
             }
         } else if (gameState === STATE.Playing) {
